@@ -73,51 +73,61 @@ export default function Home() {
             </nav>
 
             {/* ── Hero ── */}
-            <main className="pt-20 flex flex-col">
+            <main className="pt-24 flex flex-col w-full overflow-hidden">
                 {/* Hero text */}
-                <section className="text-center pt-20 pb-12 px-4">
-                    <div className="pill mx-auto mb-5" style={{ background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
-                        <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: 'var(--accent)' }} />
-                        Real-time design wins
+                <section className="text-center pt-16 pb-16 px-4 flex flex-col items-center">
+                    <div className="pill mb-6 shadow-sm border border-blue-500/20" style={{ background: 'rgba(37,99,235,0.1)', color: '#3b82f6' }}>
+                        <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#3b82f6' }} />
+                        Real-time 3D & 2D Collaboration
                     </div>
                     <h1
-                        className="text-6xl font-bold tracking-tight leading-none mb-5"
-                        style={{ color: 'var(--text-primary)', letterSpacing: '-0.04em' }}
+                        className="text-5xl md:text-7xl font-extrabold tracking-tighter leading-[1.1] mb-6 max-w-4xl"
+                        style={{ color: 'var(--text-primary)' }}
                     >
-                        Visualize. Decide.<br />Win the job.
+                        Visualize. Decide.<br className="hidden sm:block" />
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-teal-400">
+                            Win the job.
+                        </span>
                     </h1>
-                    <p className="text-lg max-w-xl mx-auto mb-8" style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-                        Design Room turns contractor–homeowner sessions into structured decisions with real-time material visualization, version history, and a collaborative design ledger.
+                    <p className="text-lg md:text-xl max-w-2xl text-center mb-10" style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                        Transform home photos into fully interactive 3D models and precise 2D plans.
+                        Collaborate with contractors and homeowners in real-time to finalize materials before construction begins.
                     </p>
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full px-4">
                         <button
                             onClick={() => setIsModalOpen(true)}
-                            className="px-8 py-3.5 rounded-full font-semibold text-base transition-all"
-                            style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
-                            onMouseOver={e => (e.currentTarget.style.opacity = '0.9')}
-                            onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+                            className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-base transition-all transform hover:-translate-y-1 hover:shadow-[0_10px_40px_-10px_rgba(37,99,235,0.8)]"
+                            style={{ background: '#2563eb', color: 'white' }}
                         >
-                            Upload a photo →
+                            Upload a photo
                         </button>
                         <a
                             href="/design/1"
-                            className="px-8 py-3.5 rounded-full font-semibold text-base transition-all"
-                            style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
-                            onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--border-focus)')}
-                            onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
+                            className="w-full sm:w-auto px-8 py-4 rounded-full font-bold text-base transition-all transform hover:-translate-y-1"
+                            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', backdropFilter: 'blur(10px)' }}
+                            onMouseOver={e => (e.currentTarget.style.borderColor = 'var(--text-muted)')}
+                            onMouseOut={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
                         >
-                            See live demo
+                            Explore Live Demo
                         </a>
                     </div>
                 </section>
 
                 {/* ── Before/After Slider ── */}
-                <section className="relative max-w-6xl mx-auto w-full px-4 mb-16">
+                <section className="relative w-full max-w-7xl mx-auto px-4 md:px-8 mb-24 flex justify-center">
                     <div
                         ref={sliderRef}
-                        className="relative w-full aspect-video rounded-2xl overflow-hidden select-none cursor-ew-resize"
-                        style={{ boxShadow: 'var(--shadow-lg)' }}
+                        className="relative w-full aspect-[16/9] md:aspect-[21/9] rounded-3xl overflow-hidden select-none cursor-ew-resize border border-white/10"
+                        style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
                         onMouseDown={handleMouseDown}
+                        onTouchStart={() => setIsDragging(true)}
+                        onTouchMove={(e) => {
+                            if (!sliderRef.current) return;
+                            const rect = sliderRef.current.getBoundingClientRect();
+                            const x = Math.max(5, Math.min(95, ((e.touches[0].clientX - rect.left) / rect.width) * 100));
+                            setSliderX(x);
+                        }}
+                        onTouchEnd={() => setIsDragging(false)}
                     >
                         {/* After image (base) — using real homeowner design photo */}
                         <Image
