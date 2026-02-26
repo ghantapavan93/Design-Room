@@ -4,7 +4,6 @@ import { MaterialPreset } from '../../lib/types';
 
 type ViewMode = '2d' | '3d' | 'virtual';
 
-// 3D angle images from Hover's 3D Designer (folder 085123)
 const ANGLES_3D = [
     '/assets/3d/3D Designer 1_1.jpg',
     '/assets/3d/3D Designer 2 2 1_1.jpg',
@@ -12,15 +11,13 @@ const ANGLES_3D = [
     '/assets/3d/3D Designer 2 3_2.jpg',
 ];
 
-// Virtual walkthrough screens (folder 085148)
 const VW_SCREENS = [
-    '/assets/vw/vw-key-screens-08.png',   // 3D dollhouse top-down
-    '/assets/vw/vw-3x2-01.png',            // Interior living
-    '/assets/vw/vw-3x2-02.png',            // Interior close-up
-    '/assets/vw/vw-3x2-03.png',            // Interior wide
+    '/assets/vw/vw-key-screens-08.png',
+    '/assets/vw/vw-3x2-01.png',
+    '/assets/vw/vw-3x2-02.png',
+    '/assets/vw/vw-3x2-03.png',
 ];
 
-// Real photorealistic exterior from Hover edit desktop (folder 084945)
 const REAL_EXTERIOR = '/assets/exterior/Edit exterior desktop 1_1.jpg';
 const REAL_EXTERIOR_WIDE = '/assets/exterior/Edit exterior desktop 3_2.jpg';
 
@@ -33,6 +30,11 @@ interface PreviewCanvasProps {
     presetsMap: Record<string, MaterialPreset>;
     highlightedRegion?: DesignRegion;
     pendingSuggestion?: { region: DesignRegion; preset: MaterialPreset };
+
+    // Multi-select & hover UX
+    selectedRegions: DesignRegion[];
+    onRegionClick?: (region: DesignRegion, clientX: number, clientY: number, shiftKey: boolean) => void;
+    onBackgroundClick?: () => void;
 }
 
 export function PreviewCanvas({
@@ -41,6 +43,9 @@ export function PreviewCanvas({
     presetsMap,
     highlightedRegion,
     pendingSuggestion,
+    selectedRegions,
+    onRegionClick,
+    onBackgroundClick,
 }: PreviewCanvasProps) {
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
     const [images] = React.useState<Record<string, HTMLImageElement>>({});
@@ -51,10 +56,25 @@ export function PreviewCanvas({
     const [canvasMode, setCanvasMode] = React.useState<'photo' | 'schematic'>('photo');
     const [angle3d, setAngle3d] = React.useState(0);
     const [vwScreen, setVwScreen] = React.useState(0);
+    const [outlinePulse, setOutlinePulse] = React.useState(1);
 
-    // drag-to-rotate state
     const dragRef = React.useRef<{ x: number; active: boolean }>({ x: 0, active: false });
     const [rotating, setRotating] = React.useState(false);
+
+    // Pulse animation for outlines
+    React.useEffect(() => {
+        if (selectedRegions.length === 0) return;
+        let start = performance.now();
+        let raf: number;
+        const animate = (time: number) => {
+            const elapsed = time - start;
+            // oscillate between 0.4 and 1.0 alpha for the outline
+            setOutlinePulse(0.7 + Math.sin(elapsed / 250) * 0.3);
+            raf = requestAnimationFrame(animate);
+        };
+        raf = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(raf);
+    }, [selectedRegions]);
 
     React.useEffect(() => {
         let loadedCount = 0;
@@ -98,16 +118,52 @@ export function PreviewCanvas({
         canvas.height = baseImg.naturalHeight;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(baseImg, 0, 0);
+
         if (!showBefore) {
             DESIGN_REGIONS.forEach(region => {
                 const maskImg = images[`mask_${region}`];
                 if (!maskImg || !maskImg.naturalWidth) return;
+
+                const isSelected = selectedRegions.includes(region);
+                const isHighlighted = highlightedRegion === region;
+
+                // 1. Draw animated blue outline if selected
+                if (isSelected) {
+                    ctx.save();
+                    const off = document.createElement('canvas');
+                    off.width = canvas.width; off.height = canvas.height;
+                    const offCtx = off.getContext('2d')!;
+
+                    // Draw mask multiple times offset to create thick outline
+                    const offset = 4;
+                    offCtx.drawImage(maskImg, -offset, 0);
+                    offCtx.drawImage(maskImg, offset, 0);
+                    offCtx.drawImage(maskImg, 0, -offset);
+                    offCtx.drawImage(maskImg, 0, offset);
+                    offCtx.drawImage(maskImg, -offset, -offset);
+                    offCtx.drawImage(maskImg, offset, offset);
+
+                    // Fill with bright blue
+                    offCtx.globalCompositeOperation = 'source-in';
+                    offCtx.fillStyle = `rgba(59, 130, 246, ${outlinePulse})`; // Blue pulse
+                    offCtx.fillRect(0, 0, off.width, off.height);
+
+                    // Erase inner part so it's just an outline
+                    offCtx.globalCompositeOperation = 'destination-out';
+                    offCtx.drawImage(maskImg, 0, 0);
+
+                    ctx.drawImage(off, 0, 0);
+                    ctx.restore();
+                }
+
+                // 2. Draw Material Tint
                 let materialId = selectedMaterials[region];
                 let isSuggestion = false;
                 if (pendingSuggestion && pendingSuggestion.region === region) {
                     materialId = pendingSuggestion.preset.id;
                     isSuggestion = true;
                 }
+
                 if (materialId && presetsMap[materialId]) {
                     const hex = presetsMap[materialId].swatchHex;
                     ctx.save();
@@ -123,7 +179,9 @@ export function PreviewCanvas({
                     ctx.drawImage(off, 0, 0);
                     ctx.restore();
                 }
-                if (highlightedRegion === region) {
+
+                // 3. Draw hover highlight (yellow)
+                if (isHighlighted) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'source-over';
                     const off = document.createElement('canvas');
@@ -138,7 +196,49 @@ export function PreviewCanvas({
                 }
             });
         }
-    }, [viewMode, canvasMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, showBefore]);
+    }, [viewMode, canvasMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, showBefore, selectedRegions, outlinePulse]);
+
+    const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!imagesLoaded || !canvasRef.current || viewMode !== '2d') return;
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+
+        // Calculate natural coordinates
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // Pixel-perfect hit detection 
+        const hitCtx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        if (!hitCtx) return;
+        hitCtx.canvas.width = 1;
+        hitCtx.canvas.height = 1;
+
+        let hitRegion: DesignRegion | null = null;
+
+        // Check smaller features first (like door, windows) before walls
+        const checkOrder: DesignRegion[] = ['door', 'windows', 'trim', 'roof', 'walls'];
+
+        for (const region of checkOrder) {
+            const maskImg = images[`mask_${region}`];
+            if (maskImg && maskImg.naturalWidth) {
+                hitCtx.clearRect(0, 0, 1, 1);
+                hitCtx.drawImage(maskImg, -x, -y);
+                const data = hitCtx.getImageData(0, 0, 1, 1).data;
+                if (data[3] > 0) { // Alpha > 0 means it's a hit
+                    hitRegion = region;
+                    break;
+                }
+            }
+        }
+
+        if (hitRegion && onRegionClick) {
+            onRegionClick(hitRegion, e.clientX, e.clientY, e.shiftKey);
+        } else if (!hitRegion && onBackgroundClick) {
+            onBackgroundClick();
+        }
+    };
 
     // Drag handlers for 3D rotation
     const onMouseDown = (e: React.MouseEvent) => {
@@ -161,7 +261,7 @@ export function PreviewCanvas({
             className="w-full h-full flex flex-col items-center justify-center p-4 relative overflow-hidden"
             style={{ background: 'var(--bg-base)' }}
         >
-            {/* View mode toggle — top right */}
+            {/* View mode toggle */}
             <div
                 className="absolute top-4 right-4 z-20 glass rounded-full p-1 flex items-center gap-1"
                 style={{ boxShadow: 'var(--shadow-md)' }}
@@ -192,15 +292,12 @@ export function PreviewCanvas({
                         border: '1px solid var(--border-subtle)',
                     }}
                 >
-                    {/* Real photorealistic house photo as backdrop when no backend masks */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                         src={safeUrl(canvasMode === 'photo' ? REAL_EXTERIOR : `${masksUrlPrefix}/exterior_base.jpg`)}
                         alt="House exterior"
                         className="absolute inset-0 w-full h-full object-cover"
                         style={{ opacity: baseReady ? 0 : 1, transition: 'opacity 0.5s' }}
                     />
-                    {/* Loading */}
                     {!imagesLoaded && (
                         <div className="absolute inset-0 flex items-center justify-center z-10">
                             <div className="flex flex-col items-center gap-3">
@@ -211,11 +308,12 @@ export function PreviewCanvas({
                     )}
                     <canvas
                         ref={canvasRef}
-                        className="absolute inset-0 w-full h-full object-contain"
+                        onClick={handleCanvasClick}
+                        className="absolute inset-0 w-full h-full object-contain cursor-crosshair"
                         style={{ opacity: baseReady ? 1 : 0, transition: 'opacity 0.5s ease' }}
                     />
 
-                    {/* Mode toggle — Photo vs Schematic */}
+                    {/* Mode toggle */}
                     <div
                         className="absolute bottom-4 left-4 glass rounded-full p-1 flex items-center gap-1"
                         style={{ boxShadow: 'var(--shadow-md)' }}
@@ -257,10 +355,9 @@ export function PreviewCanvas({
                         ))}
                     </div>
 
-                    {/* Suggestion pill */}
                     {pendingSuggestion && (
                         <div
-                            className="absolute top-4 left-1/2 -translate-x-1/2 glass-light rounded-full px-4 py-2 flex items-center gap-2.5 animate-fade-up"
+                            className="absolute top-4 left-1/2 -translate-x-1/2 glass-light rounded-full px-4 py-2 flex items-center gap-2.5 animate-fade-up pointer-events-none"
                             style={{ border: '1px solid rgba(96,165,250,0.2)' }}
                         >
                             <span className="w-2 h-2 rounded-full pulse-dot" style={{ background: '#60a5fa' }} />
@@ -291,12 +388,11 @@ export function PreviewCanvas({
                         key={ANGLES_3D[angle3d]}
                         src={safeUrl(ANGLES_3D[angle3d])}
                         alt={`3D view angle ${angle3d + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover pointer-events-none"
                         style={{ transition: 'opacity 0.2s ease' }}
                         draggable={false}
                     />
 
-                    {/* Angle dots */}
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
                         {ANGLES_3D.map((_, i) => (
                             <button
@@ -308,7 +404,6 @@ export function PreviewCanvas({
                         ))}
                     </div>
 
-                    {/* Rotate hint */}
                     <div
                         className="absolute top-4 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 flex items-center gap-2"
                         style={{ pointerEvents: 'none' }}
@@ -340,7 +435,6 @@ export function PreviewCanvas({
                         style={{ transition: 'opacity 0.3s ease' }}
                     />
 
-                    {/* Mode label */}
                     <div className="absolute top-4 left-4 glass rounded-full px-3 py-1.5 flex items-center gap-2">
                         <span
                             className="text-xs font-bold uppercase tracking-widest"
@@ -350,7 +444,6 @@ export function PreviewCanvas({
                         </span>
                     </div>
 
-                    {/* Navigation buttons */}
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
                         {['Dollhouse', 'Living', 'Detail', 'Wide'].map((label, i) => (
                             <button
@@ -368,7 +461,6 @@ export function PreviewCanvas({
                         ))}
                     </div>
 
-                    {/* Prev/Next arrows */}
                     {vwScreen > 0 && (
                         <button
                             className="absolute left-4 top-1/2 -translate-y-1/2 glass w-10 h-10 rounded-full flex items-center justify-center"
@@ -388,10 +480,9 @@ export function PreviewCanvas({
                 </div>
             )}
 
-            {/* Mode description row */}
             <div className="mt-4 flex items-center gap-2">
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {viewMode === '2d' && 'High-resolution exterior with material overlays'}
+                    {viewMode === '2d' && 'Click regions to select and customize • Hold Shift to multi-select'}
                     {viewMode === '3d' && 'Photorealistic 3D render — drag to rotate between angles'}
                     {viewMode === 'virtual' && 'Virtual walkthrough — explore every room'}
                 </span>

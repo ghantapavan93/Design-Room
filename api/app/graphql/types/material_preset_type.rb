@@ -6,5 +6,9 @@ module Types
     field :brand, String, null: false
     field :swatch_hex, String, null: false
     field :thumbnail_url, String
+    field :color_family, String
+    field :cost_band, String
+    field :sku, String
+    field :unit_type, String
   end
 end

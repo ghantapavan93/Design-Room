@@ -6,6 +6,7 @@ interface BottomBarProps {
     onModeChange: (mode: 'design' | 'compare') => void;
     onOpenLedger: () => void;
     onOpenVersions: () => void;
+    onOpenTakeoff: () => void;
     onShare: () => void;
     onUndo: () => void;
     canUndo: boolean;
@@ -17,6 +18,7 @@ export function BottomBar({
     onModeChange,
     onOpenLedger,
     onOpenVersions,
+    onOpenTakeoff,
     onShare,
     onUndo,
     canUndo,
@@ -83,7 +85,19 @@ export function BottomBar({
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                     </svg>
-                    Versions
+                    Options
+                </button>
+
+                <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
+
+                <button
+                    onClick={onOpenTakeoff}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700"
+                >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Takeoff & Estimate
                 </button>
 
                 <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />

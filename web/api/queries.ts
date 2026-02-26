@@ -40,6 +40,10 @@ export const MATERIALS_QUERY = `
       category
       name
       brand
+      color_family
+      cost_band
+      sku
+      unit_type
       swatchHex
       thumbnailUrl
     }

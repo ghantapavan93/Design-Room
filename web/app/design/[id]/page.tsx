@@ -8,8 +8,9 @@ import { MaterialPanel } from '@/components/design/material_panel';
 import { BottomBar } from '@/components/design/bottom_bar';
 import { LivePresenceBar } from '@/components/design/live_presence_bar';
 import { DesignLedgerDrawer } from '@/components/design/design_ledger_drawer';
-import { VersionsDrawer } from '@/components/design/versions_drawer';
-import { VersionCompare } from '@/components/design/version_compare';
+import { OptionsDrawer } from '@/components/design/options_drawer';
+import { OptionCompare } from '@/components/design/option_compare';
+import { TakeoffDrawer } from '@/components/design/takeoff_drawer';
 import { ShareDialog } from '@/components/design/share_dialog';
 import { ConflictBanner } from '@/components/design/conflict_banner';
 import { DesignRegion } from '@/lib/regions';
@@ -56,17 +57,19 @@ export default function DesignEditorPage() {
     const [members, setMembers] = React.useState<SessionMember[]>([]);
 
     // UI State
-    const [selectedRegion, setSelectedRegion] = React.useState<DesignRegion>('walls');
+    const [selectedRegions, setSelectedRegions] = React.useState<DesignRegion[]>(['walls']);
+    const [chipPosition, setChipPosition] = React.useState<{ x: number, y: number } | null>(null);
     const [highlightedRegion, setHighlightedRegion] = React.useState<DesignRegion | undefined>();
     const [isLedgerOpen, setIsLedgerOpen] = React.useState(false);
-    const [isVersionsOpen, setIsVersionsOpen] = React.useState(false);
+    const [isOptionsOpen, setIsOptionsOpen] = React.useState(false);
+    const [isTakeoffOpen, setIsTakeoffOpen] = React.useState(false);
     const [isShareOpen, setIsShareOpen] = React.useState(false);
 
     // Pending Suggestion State
     const [pendingSuggestion, setPendingSuggestion] = React.useState<{ region: DesignRegion; preset: MaterialPreset; actorName: string; eventId: string } | null>(null);
 
-    // Compare/Version State
-    const [compareVersion, setCompareVersion] = React.useState<DesignVersion | null>(null);
+    // Compare/Option State
+    const [compareOption, setCompareOption] = React.useState<DesignVersion | null>(null);
 
     // Share State
     const [shareLinkLoading, setShareLinkLoading] = React.useState(false);
@@ -345,40 +348,46 @@ export default function DesignEditorPage() {
         try { const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId }); setDesign(res.design); } catch { }
     };
 
-    const handleMaterialSelect = async (region: DesignRegion, preset: MaterialPreset) => {
+    const handleMaterialSelect = async (regions: DesignRegion[], preset: MaterialPreset) => {
         if (permission === 'viewer') return;
         const txnId = generateIdempotencyKey();
 
+        const newStateJson = { ...design?.state?.stateJson };
+        regions.forEach(r => newStateJson[r] = preset.id);
+
         if (permission === 'editor') {
             // Optimistic
-            setDesign(prev => prev ? { ...prev, state: { ...prev.state, stateJson: { ...prev.state.stateJson, [region]: preset.id } } } : null);
+            setDesign(prev => prev ? { ...prev, state: { ...prev.state, stateJson: newStateJson as any } } : null);
             try {
-                const res = await api.graphqlRequest<any>(APPLY_MATERIAL_MUTATION, {
-                    input: { designId, region, materialId: preset.id, actorName: displayName, actorRole: role, actorPermission: permission, clientTxnId: txnId, designSessionToken: sessionToken }
-                });
-                if (!res.applyMaterial.success) {
-                    if (res.applyMaterial.errorCode === 'CONFLICT') {
-                        setConflictMsg(res.applyMaterial.errors[0]);
-                        setConflictMaterial(preset);
-                        setConflictRegion(region);
-                        refreshDesignData();
-                    } else {
-                        toast({ title: res.applyMaterial.errors[0], variant: 'destructive' });
-                        refreshDesignData();
+                await Promise.all(regions.map(async r => {
+                    const res = await api.graphqlRequest<any>(APPLY_MATERIAL_MUTATION, {
+                        input: { designId, region: r, materialId: preset.id, actorName: displayName, actorRole: role, actorPermission: permission, clientTxnId: txnId, designSessionToken: sessionToken }
+                    });
+                    if (!res.applyMaterial.success) {
+                        if (res.applyMaterial.errorCode === 'CONFLICT') {
+                            setConflictMsg(res.applyMaterial.errors[0]);
+                            setConflictMaterial(preset);
+                            setConflictRegion(r);
+                        } else {
+                            toast({ title: res.applyMaterial.errors[0], variant: 'destructive' });
+                        }
                     }
-                }
+                }));
+                refreshDesignData();
             } catch { toast({ title: 'Network error', variant: 'destructive' }); refreshDesignData(); }
         } else if (permission === 'suggester') {
             try {
-                const res = await api.graphqlRequest<any>(SUGGEST_MATERIAL_MUTATION, {
-                    input: { designId, region, materialId: preset.id, actorName: displayName, actorRole: role, actorPermission: permission, clientTxnId: txnId, designSessionToken: sessionToken }
-                });
-                if (res.suggestMaterial.success) {
-                    toast({ title: 'Suggestion sent to contractor', variant: 'success' });
-                    setPendingSuggestion({ region, preset, actorName: displayName, eventId: res.suggestMaterial.event.id });
-                } else {
-                    toast({ title: res.suggestMaterial.errors[0], variant: 'destructive' });
-                }
+                await Promise.all(regions.map(async r => {
+                    const res = await api.graphqlRequest<any>(SUGGEST_MATERIAL_MUTATION, {
+                        input: { designId, region: r, materialId: preset.id, actorName: displayName, actorRole: role, actorPermission: permission, clientTxnId: txnId, designSessionToken: sessionToken }
+                    });
+                    if (res.suggestMaterial.success) {
+                        setPendingSuggestion({ region: r, preset, actorName: displayName, eventId: res.suggestMaterial.event.id });
+                    } else {
+                        toast({ title: res.suggestMaterial.errors[0], variant: 'destructive' });
+                    }
+                }));
+                toast({ title: 'Suggestions sent to contractor', variant: 'success' });
             } catch { toast({ title: 'Network error', variant: 'destructive' }); }
         }
     };
@@ -419,8 +428,8 @@ export default function DesignEditorPage() {
                 input: { versionId, actorName: displayName, clientTxnId: generateIdempotencyKey(), designSessionToken: sessionToken }
             });
             toast({ title: 'Design restored', variant: 'success' });
-            setCompareVersion(null);
-            setIsVersionsOpen(false);
+            setCompareOption(null);
+            setIsOptionsOpen(false);
             refreshDesignData();
         } catch { toast({ title: 'Failed to restore', variant: 'destructive' }); }
     };
@@ -567,8 +576,8 @@ export default function DesignEditorPage() {
             <div className="flex-1 flex overflow-hidden relative">
                 <MaterialPanel
                     presets={presetsArr}
-                    selectedRegion={selectedRegion}
-                    onRegionChange={setSelectedRegion}
+                    selectedRegions={selectedRegions}
+                    onRegionChange={setSelectedRegions}
                     selectedMaterials={(design.state.stateJson || {}) as Record<DesignRegion, string>}
                     onMaterialSelect={handleMaterialSelect}
                     pendingSuggestion={pendingSuggestion || undefined}
@@ -584,7 +593,34 @@ export default function DesignEditorPage() {
                         presetsMap={presets}
                         highlightedRegion={highlightedRegion}
                         pendingSuggestion={pendingSuggestion || undefined}
+                        selectedRegions={selectedRegions}
+                        onRegionClick={(region, x, y, shiftKey) => {
+                            if (shiftKey) {
+                                setSelectedRegions(prev => prev.includes(region) ? prev.filter(r => r !== region) : [...prev, region]);
+                            } else {
+                                setSelectedRegions([region]);
+                            }
+                            setChipPosition({ x, y });
+                        }}
+                        onBackgroundClick={() => {
+                            setSelectedRegions([]);
+                            setChipPosition(null);
+                        }}
                     />
+                    {selectedRegions.length > 0 && chipPosition && (
+                        <div
+                            className="absolute z-30 flex flex-col items-center animate-fade-up pointer-events-auto"
+                            style={{ left: chipPosition.x, top: chipPosition.y - 60, transform: 'translateX(-50%)', position: 'fixed' }}
+                        >
+                            <div className="glass rounded-xl shadow-2xl p-2 flex items-center gap-3 border border-white/20">
+                                <span className="text-xs font-bold text-white whitespace-nowrap px-1">{selectedRegions.length === 1 ? selectedRegions[0].toUpperCase() : `${selectedRegions.length} REGIONS`} SELECTED</span>
+                                <div className="w-px h-4 bg-white/20" />
+                                <button className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white transition-colors" onClick={() => { /* Apply logic if they want to click it over picking from menu */ }}>Apply</button>
+                                {permission === 'editor' && <button className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-colors" onClick={() => { setChipPosition(null); }}>Lock</button>}
+                            </div>
+                            <div className="w-3 h-3 bg-white/10 border-r border-b border-white/20 rotate-45 -mt-1.5 backdrop-blur-md" />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -593,7 +629,8 @@ export default function DesignEditorPage() {
                 mode="design"
                 onModeChange={() => { }}
                 onOpenLedger={() => setIsLedgerOpen(true)}
-                onOpenVersions={() => setIsVersionsOpen(true)}
+                onOpenVersions={() => setIsOptionsOpen(true)}
+                onOpenTakeoff={() => setIsTakeoffOpen(true)}
                 onShare={() => setIsShareOpen(true)}
                 onUndo={handleUndo}
                 canUndo={permission === 'editor' && !!design.recentEvents?.find(e => e.eventType === 'apply_material')}
@@ -614,27 +651,27 @@ export default function DesignEditorPage() {
                 pendingSuggestion={pendingSuggestion || undefined}
             />
 
-            <VersionsDrawer
-                open={isVersionsOpen}
-                onOpenChange={setIsVersionsOpen}
+            <OptionsDrawer
+                open={isOptionsOpen}
+                onOpenChange={setIsOptionsOpen}
                 versions={design.versions || []}
                 currentState={design.state.stateJson || {}}
                 finalVersionId={design.finalVersionId ? String(design.finalVersionId) : null}
                 onSaveVersion={handleSaveVersion}
-                onCompare={setCompareVersion}
+                onCompare={setCompareOption}
                 onRestore={handleRestoreVersion}
                 onMarkFinal={handleMarkFinal}
                 isEditor={permission === 'editor'}
             />
 
-            {compareVersion && (
-                <VersionCompare
-                    version={compareVersion}
+            {compareOption && (
+                <OptionCompare
+                    version={compareOption}
                     currentState={(design.state.stateJson || {}) as Record<DesignRegion, string>}
                     presetsMap={presets}
                     baseImageUrl="/demo/exterior_base.jpg"
                     masksUrlPrefix="/demo"
-                    onClose={() => setCompareVersion(null)}
+                    onClose={() => setCompareOption(null)}
                     onRestore={handleRestoreVersion}
                     isEditor={permission === 'editor'}
                 />
@@ -648,11 +685,18 @@ export default function DesignEditorPage() {
                 onCreateLink={handleCreateShareLink}
             />
 
+            <TakeoffDrawer
+                open={isTakeoffOpen}
+                onOpenChange={setIsTakeoffOpen}
+                currentState={(design.state.stateJson || {}) as Record<string, string>}
+                presetsMap={presets}
+            />
+
             <ConflictBanner
                 show={!!conflictMsg}
                 message={conflictMsg || ''}
                 onKeepTheirs={() => { setConflictMsg(null); refreshDesignData(); }}
-                onKeepMine={() => { setConflictMsg(null); if (conflictMaterial && conflictRegion) handleMaterialSelect(conflictRegion, conflictMaterial); }}
+                onKeepMine={() => { setConflictMsg(null); if (conflictMaterial && conflictRegion) handleMaterialSelect([conflictRegion], conflictMaterial); }}
             />
         </EditorShell>
     );

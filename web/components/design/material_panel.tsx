@@ -2,27 +2,27 @@ import * as React from 'react';
 import { MaterialPreset } from '../../lib/types';
 import { DesignRegion, DESIGN_REGIONS } from '../../lib/regions';
 import { MaterialCard } from './material_card';
+import { getRecentMaterials, addRecentMaterial } from '../../lib/recent_materials';
 
 interface MaterialPanelProps {
     presets: MaterialPreset[];
-    selectedRegion: DesignRegion;
-    onRegionChange: (region: DesignRegion) => void;
+    selectedRegions: DesignRegion[];
+    onRegionChange: (regions: DesignRegion[]) => void;
     selectedMaterials: Record<DesignRegion, string>;
-    onMaterialSelect: (region: DesignRegion, material: MaterialPreset) => void;
+    onMaterialSelect: (regions: DesignRegion[], material: MaterialPreset) => void;
     pendingSuggestion?: { region: DesignRegion; preset: MaterialPreset; actorName: string };
     isSuggester?: boolean;
 }
 
 // Extended visual categories matching Hover's exact sidebar layout.
-// Garage → maps to 'trim' region, Paint → 'walls', Door → 'trim'
-// so we can keep the backend stable while showing Hover's full category list.
+// Garage → maps to 'garage', Paint → 'walls', Door → 'door'
 const VISUAL_CATEGORIES: { label: string; region: DesignRegion; icon: string }[] = [
-    { label: 'Garage', region: 'trim', icon: '🚗' },
+    { label: 'Garage', region: 'garage', icon: '🚗' },
     { label: 'Paint', region: 'walls', icon: '🎨' },
     { label: 'Roof', region: 'roof', icon: '🔺' },
     { label: 'Windows', region: 'windows', icon: '🪟' },
     { label: 'Walls', region: 'walls', icon: '🏠' },
-    { label: 'Door', region: 'trim', icon: '🚪' },
+    { label: 'Door', region: 'door', icon: '🚪' },
 ];
 
 // Brand grouping
@@ -40,7 +40,7 @@ const COLOR_FILTERS = [
 
 export function MaterialPanel({
     presets,
-    selectedRegion,
+    selectedRegions,
     onRegionChange,
     selectedMaterials,
     onMaterialSelect,
@@ -51,23 +51,31 @@ export function MaterialPanel({
     const [selectedBrand, setSelectedBrand] = React.useState('All brands');
     const [brandMenuOpen, setBrandMenuOpen] = React.useState(false);
     const [colorFilter, setColorFilter] = React.useState<string | null>(null);
+    const [recentMaterials, setRecentMaterials] = React.useState<MaterialPreset[]>([]);
 
-    // Visual category tracks the display label; the underlying region is the backend key
-    const [visualCategory, setVisualCategory] = React.useState<string>('Paint');
+    React.useEffect(() => {
+        setRecentMaterials(getRecentMaterials());
+    }, []);
+
+    // active region determines which presets to show in the list
+    const activeRegion = selectedRegions.length > 0 ? selectedRegions[selectedRegions.length - 1] : 'walls';
 
     const handleVisualCategory = (cat: typeof VISUAL_CATEGORIES[number]) => {
-        setVisualCategory(cat.label);
-        onRegionChange(cat.region);
+        onRegionChange([cat.region]);
     };
 
     const filteredPresets = React.useMemo(() => {
         return presets.filter(p =>
-            p.category === selectedRegion &&
+            // Depending on the dataset, if the preset's category doesn't strictly match the new DesignRegions
+            // we will fallback to matching 'walls' with 'Paint'/'Walls' or 'trim' with 'Garage'/'Door'.
+            // For now, assume exact match or default safe fallback.
+            (p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim') || (activeRegion === 'walls' && p.category === 'walls')) &&
             (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.brand.toLowerCase().includes(searchQuery.toLowerCase())) &&
-            (selectedBrand === 'All brands' || p.brand === selectedBrand)
+            (selectedBrand === 'All brands' || p.brand === selectedBrand) &&
+            (!colorFilter || p.swatchHex === colorFilter)
         );
-    }, [presets, selectedRegion, searchQuery, selectedBrand]);
+    }, [presets, activeRegion, searchQuery, selectedBrand, colorFilter]);
 
     const resultCount = filteredPresets.length;
 
@@ -94,7 +102,7 @@ export function MaterialPanel({
                     <div className="flex flex-wrap gap-1.5">
                         {VISUAL_CATEGORIES.map(cat => {
                             const hasSuggestion = pendingSuggestion?.region === cat.region;
-                            const isActive = visualCategory === cat.label;
+                            const isActive = activeRegion === cat.region;
                             return (
                                 <button
                                     key={cat.label}
@@ -266,24 +274,58 @@ export function MaterialPanel({
             )}
 
             {/* ── Swatch grid ── */}
-            <div className="flex-1 overflow-y-auto p-4">
-                <div className="grid grid-cols-2 gap-2.5">
-                    {filteredPresets.map(preset => (
-                        <MaterialCard
-                            key={preset.id}
-                            preset={preset}
-                            isSelected={selectedMaterials[selectedRegion] === preset.id}
-                            onSelect={(p) => onMaterialSelect(selectedRegion, p)}
-                        />
-                    ))}
-                    {filteredPresets.length === 0 && (
-                        <div className="col-span-2 text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                            <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <p className="text-sm">No results</p>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
+
+                {/* ── Recently Used (Empty Search Context) ── */}
+                {!searchQuery && selectedBrand === 'All brands' && !colorFilter && recentMaterials.filter(p => p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim')).length > 0 && (
+                    <div>
+                        <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Recently Used</p>
+                        <div className="grid grid-cols-2 gap-2.5">
+                            {recentMaterials
+                                .filter(p => p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim'))
+                                .map(preset => (
+                                    <MaterialCard
+                                        key={`recent-${preset.id}`}
+                                        preset={preset}
+                                        isSelected={selectedMaterials[activeRegion] === preset.id}
+                                        onSelect={(p) => {
+                                            addRecentMaterial(p);
+                                            setRecentMaterials(getRecentMaterials());
+                                            onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeRegion], p);
+                                        }}
+                                    />
+                                ))}
                         </div>
+                    </div>
+                )}
+
+                {/* ── Main Catalog ── */}
+                <div>
+                    {!searchQuery && selectedBrand === 'All brands' && !colorFilter && (
+                        <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>All Options</p>
                     )}
+                    <div className="grid grid-cols-2 gap-2.5">
+                        {filteredPresets.map(preset => (
+                            <MaterialCard
+                                key={preset.id}
+                                preset={preset}
+                                isSelected={selectedMaterials[activeRegion] === preset.id}
+                                onSelect={(p) => {
+                                    addRecentMaterial(p);
+                                    setRecentMaterials(getRecentMaterials());
+                                    onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeRegion], p);
+                                }}
+                            />
+                        ))}
+                        {filteredPresets.length === 0 && (
+                            <div className="col-span-2 text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                                <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <p className="text-sm">No results</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

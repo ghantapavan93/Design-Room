@@ -5,6 +5,10 @@ export interface MaterialPreset {
     category: DesignRegion;
     name: string;
     brand: string;
+    color_family?: string;
+    cost_band?: '$' | '$$' | '$$$';
+    sku?: string;
+    unit_type?: 'sqft' | 'linear_ft' | 'each';
     swatchHex: string;
     thumbnailUrl?: string;
 }
