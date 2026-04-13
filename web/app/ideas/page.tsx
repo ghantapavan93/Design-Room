@@ -8,8 +8,10 @@ interface StyleCard {
     label: string;
     description: string;
     palette: string[]; // hex swatches
-    previewBg: string;
+    imageUrl: string;
     tag: string;
+    elementCount?: number;
+    designId?: number;
 }
 
 const STYLE_CARDS: StyleCard[] = [
@@ -17,43 +19,51 @@ const STYLE_CARDS: StyleCard[] = [
         label: 'Contemporary',
         description: 'Bold dark exteriors with modern lines and warm wood accents.',
         palette: ['#1c1c1e', '#2c2c2e', '#4a3728', '#c9a96e'],
-        previewBg: '#1c1c1e',
-        tag: 'Most popular',
+        imageUrl: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&q=80',
+        tag: 'View Only',
+        elementCount: 0,
     },
     {
         label: 'Farmhouse',
         description: 'Crisp white with black trim and natural shiplap textures.',
         palette: ['#f5f5f0', '#1a1a1a', '#8b7d6b', '#d4c4a8'],
-        previewBg: '#f5f5f0',
+        imageUrl: 'https://images.unsplash.com/photo-1598228723793-52759bba239c?w=800&q=80',
         tag: 'Classic',
+        elementCount: 4,
+        designId: 2,
     },
     {
         label: 'Japanese Modern',
         description: 'Warm tan with natural stone and minimalist detailing.',
         palette: ['#c4a882', '#8b7355', '#4a3f35', '#d4c4a8'],
-        previewBg: '#c4a882',
-        tag: 'Trending',
+        imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80',
+        tag: 'View Only',
+        elementCount: 0,
     },
     {
         label: 'Coastal',
         description: 'Soft sage greens and sea blues with white trim.',
         palette: ['#b2c9b0', '#5b7c6c', '#e8e4dc', '#f0ede5'],
-        previewBg: '#b2c9b0',
-        tag: '',
+        imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80',
+        tag: 'Most Popular',
+        elementCount: 4,
+        designId: 1,
     },
     {
         label: 'Traditional',
         description: 'Warm greige with dark charcoal trim and classic moulding.',
         palette: ['#c8bcaa', '#3d3530', '#6b5b4e', '#ddd4c8'],
-        previewBg: '#c8bcaa',
-        tag: '',
+        imageUrl: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=800&q=80',
+        tag: 'View Only',
+        elementCount: 0,
     },
     {
         label: 'Monochrome',
         description: 'One tone, many textures. Elevated tonal sophistication.',
         palette: ['#d4c9b5', '#b8a898', '#9a8c7c', '#7c6e60'],
-        previewBg: '#d4c9b5',
-        tag: 'Editor\'s Pick',
+        imageUrl: 'https://images.unsplash.com/photo-1600607687644-aac4c15c827b?w=800&q=80',
+        tag: 'View Only',
+        elementCount: 0,
     },
 ];
 
@@ -62,86 +72,77 @@ function IdeaCard({ card, onCustomize }: { card: StyleCard; onCustomize: () => v
 
     return (
         <div
-            className="idea-card"
+            className="rounded-2xl overflow-hidden group shadow-sm transition-all hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] hover:-translate-y-1 bg-white border border-neutral-200"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
             {/* Preview area */}
-            <div
-                className="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden"
-                style={{ background: card.previewBg }}
-            >
-                {/* Simulated house silhouette */}
-                <svg viewBox="0 0 200 120" className="w-3/4 opacity-30" fill="white">
-                    <polygon points="100,10 180,60 20,60" />
-                    <rect x="40" y="60" width="120" height="60" />
-                    <rect x="85" y="90" width="30" height="30" fill="rgba(0,0,0,0.2)" />
-                    <rect x="50" y="70" width="25" height="25" fill="rgba(0,0,0,0.15)" />
-                    <rect x="125" y="70" width="25" height="25" fill="rgba(0,0,0,0.15)" />
-                </svg>
+            <div className="relative w-full aspect-[4/3] flex items-center justify-center overflow-hidden bg-neutral-100">
+                <img src={card.imageUrl} alt={card.label} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
 
                 {/* Tag */}
                 {card.tag && (
                     <div
-                        className="absolute top-3 left-3 pill text-xs"
-                        style={{ background: 'rgba(0,0,0,0.5)', color: 'white', backdropFilter: 'blur(8px)' }}
+                        className="absolute top-4 left-4 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full"
+                        style={{ background: 'rgba(255,255,255,0.9)', color: 'black', backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     >
                         {card.tag}
                     </div>
                 )}
-
-                {/* Hover overlay */}
-                <div
-                    className="absolute inset-0 flex items-end p-3 gap-2 transition-opacity duration-200"
-                    style={{ opacity: hovered ? 1 : 0, background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)' }}
-                >
-                    <button
-                        onClick={onCustomize}
-                        className="flex-1 py-2 text-xs font-semibold rounded-lg transition-all"
-                        style={{ background: 'white', color: '#0c0c0d' }}
-                    >
-                        Customize
-                    </button>
-                    <button
-                        className="w-9 h-9 rounded-lg flex items-center justify-center"
-                        style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}
-                        title="Save"
-                    >
-                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                        </svg>
-                    </button>
-                </div>
             </div>
 
             {/* Card footer */}
-            <div className="p-4" style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-subtle)' }}>
-                <div className="flex items-center justify-between mb-1.5">
-                    <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{card.label}</h3>
+            <div className="p-5 flex flex-col h-[180px]">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{card.label}</h3>
                     {/* Palette dots */}
                     <div className="flex -space-x-1">
                         {card.palette.map((hex, i) => (
                             <div
                                 key={i}
-                                className="w-4 h-4 rounded-full ring-1"
-                                style={{ background: hex, boxShadow: '0 0 0 1.5px var(--bg-elevated)' }}
+                                className="w-4 h-4 rounded-full ring-2 ring-white"
+                                style={{ background: hex, boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             />
                         ))}
                     </div>
                 </div>
-                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{card.description}</p>
-                <button
-                    className="w-full mt-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between px-3 transition-all"
-                    style={{ background: 'var(--bg-overlay)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
-                    onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--border-focus)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
-                    onMouseOut={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
-                    onClick={onCustomize}
-                >
-                    Get the look
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                </button>
+                <p className="text-sm leading-relaxed mb-auto" style={{ color: 'var(--text-secondary)' }}>{card.description}</p>
+
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-neutral-100">
+                    <button
+                        onClick={() => {
+                            if (card.elementCount && card.elementCount > 0) {
+                                onCustomize();
+                            } else {
+                                alert("This design is currently 'View Only' as it has no editable masks available. Please choose a different design to edit.");
+                            }
+                        }}
+                        className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 ${card.elementCount && card.elementCount > 0 ? '' : 'opacity-60 bg-neutral-100 text-neutral-600'}`}
+                        style={card.elementCount && card.elementCount > 0 ? { background: 'var(--text-primary)', color: 'var(--bg-base)' } : {}}
+                        onMouseOver={e => card.elementCount && card.elementCount > 0 && (e.currentTarget.style.opacity = '0.9')}
+                        onMouseOut={e => card.elementCount && card.elementCount > 0 && (e.currentTarget.style.opacity = '1')}
+                    >
+                        {card.elementCount && card.elementCount > 0 ? 'Open in editor' : 'View Only (Missing Masks)'}
+                        {card.elementCount && card.elementCount > 0 ? (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        )}
+                    </button>
+
+                    <button
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm border border-neutral-200 bg-white hover:bg-neutral-50 transition-colors"
+                        title="Save for later"
+                    >
+                        <svg className="w-4 h-4" style={{ color: 'var(--text-primary)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -189,27 +190,53 @@ export default function IdeasPage() {
                 </div>
             </nav>
 
-            {/* Filter row */}
-            <div className="px-8 py-5 flex items-center gap-2 overflow-x-auto" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                {filters.map(f => (
-                    <button
-                        key={f}
-                        className="category-btn flex-shrink-0"
-                        style={activeFilter === f ? { background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 } : {}}
-                        onClick={() => setActiveFilter(f)}
-                    >
-                        {f}
-                    </button>
-                ))}
+            {/* High-end Search + Filter row */}
+            <div className="px-6 md:px-12 py-8 flex flex-col md:flex-row items-center justify-between gap-6" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                {/* Search */}
+                <div className="relative w-full md:w-96">
+                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                        type="text"
+                        placeholder="Search inspiration..."
+                        className="w-full pl-11 pr-4 py-3 rounded-full text-sm font-medium transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white border border-neutral-200"
+                        style={{ color: 'var(--text-primary)' }}
+                        onChange={(e) => setActiveFilter(e.target.value ? '' : 'All styles')}
+                    />
+                </div>
+
+                {/* Filter chips */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 hide-scrollbar w-full md:w-auto">
+                    {filters.map(f => (
+                        <button
+                            key={f}
+                            className="px-5 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-widest flex-shrink-0 transition-all border"
+                            style={activeFilter === f
+                                ? { background: 'var(--text-primary)', color: 'var(--text-inverse)', borderColor: 'var(--text-primary)' }
+                                : { background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
+                            }
+                            onClick={() => setActiveFilter(f)}
+                        >
+                            {f}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Grid */}
-            <div className="px-8 py-8 grid grid-cols-3 gap-5 max-w-7xl mx-auto">
+            <div className="px-6 md:px-12 pt-10 pb-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-[1600px] mx-auto min-h-[60vh]">
                 {filtered.map((card, i) => (
                     <div key={card.label} className="animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
                         <IdeaCard
                             card={card}
-                            onCustomize={() => router.push('/design/1')}
+                            onCustomize={() => {
+                                if (card.designId) {
+                                    router.push(`/design/${card.designId}`);
+                                } else {
+                                    router.push('/design/1'); // Fallback
+                                }
+                            }}
                         />
                     </div>
                 ))}

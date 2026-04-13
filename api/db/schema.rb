@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_29_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -31,6 +31,19 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
     t.index ["design_id", "client_txn_id"], name: "index_design_events_on_design_id_and_client_txn_id", unique: true, where: "(client_txn_id IS NOT NULL)"
     t.index ["design_id"], name: "index_design_events_on_design_id"
     t.index ["design_session_id"], name: "index_design_events_on_design_session_id"
+  end
+
+  create_table "design_exports", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.bigint "design_version_id"
+    t.string "exported_by", null: false
+    t.string "export_type", null: false
+    t.string "version_label"
+    t.decimal "estimate_total", precision: 12, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_id"], name: "index_design_exports_on_design_id"
+    t.index ["design_version_id"], name: "index_design_exports_on_design_version_id"
   end
 
   create_table "design_sessions", force: :cascade do |t|
@@ -67,6 +80,21 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
     t.integer "final_version_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "base_media_url"
+    t.string "masks_url_prefix"
+    t.boolean "mask_ready", default: false, null: false
+  end
+
+  create_table "elements", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.string "label", null: false
+    t.string "kind", null: false
+    t.string "group_key", null: false
+    t.string "mask_url", null: false
+    t.integer "sort_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_id"], name: "index_elements_on_design_id"
   end
 
   create_table "material_presets", force: :cascade do |t|
@@ -83,6 +111,46 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
     t.string "unit_type"
   end
 
+  create_table "project_messages", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.string "author_name", null: false
+    t.string "author_role", null: false
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "client_txn_id"
+    t.index ["client_txn_id"], name: "index_project_messages_on_client_txn_id"
+    t.index ["created_at"], name: "index_project_messages_on_created_at"
+    t.index ["design_id"], name: "index_project_messages_on_design_id"
+  end
+
+  create_table "region_comments", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.string "region", null: false
+    t.string "author_name", null: false
+    t.string "author_role"
+    t.text "body", null: false
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "client_txn_id"
+    t.index ["client_txn_id"], name: "index_region_comments_on_client_txn_id"
+    t.index ["design_id", "region"], name: "index_region_comments_on_design_id_and_region"
+    t.index ["design_id"], name: "index_region_comments_on_design_id"
+  end
+
+  create_table "region_locks", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.string "region", null: false
+    t.string "locked_by", null: false
+    t.string "lock_reason"
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_id", "region"], name: "index_region_locks_on_design_id_and_region", unique: true
+    t.index ["design_id"], name: "index_region_locks_on_design_id"
+  end
+
   create_table "session_members", force: :cascade do |t|
     t.bigint "design_session_id", null: false
     t.string "display_name", null: false
@@ -91,7 +159,9 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
     t.datetime "last_seen_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "participant_id"
     t.index ["design_session_id", "display_name"], name: "index_session_members_on_design_session_id_and_display_name", unique: true
+    t.index ["design_session_id", "participant_id"], name: "idx_session_members_on_session_and_participant", unique: true, where: "(participant_id IS NOT NULL)"
     t.index ["design_session_id"], name: "index_session_members_on_design_session_id"
   end
 
@@ -103,15 +173,23 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_01_000000) do
     t.datetime "expires_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "revoked_at"
+    t.datetime "last_accessed_at"
     t.index ["design_id"], name: "index_share_links_on_design_id"
     t.index ["token"], name: "index_share_links_on_token", unique: true
   end
 
   add_foreign_key "design_events", "design_sessions"
   add_foreign_key "design_events", "designs"
+  add_foreign_key "design_exports", "design_versions"
+  add_foreign_key "design_exports", "designs"
   add_foreign_key "design_sessions", "designs"
   add_foreign_key "design_states", "designs"
   add_foreign_key "design_versions", "designs"
+  add_foreign_key "elements", "designs"
+  add_foreign_key "project_messages", "designs"
+  add_foreign_key "region_comments", "designs"
+  add_foreign_key "region_locks", "designs"
   add_foreign_key "session_members", "design_sessions"
   add_foreign_key "share_links", "designs"
 end

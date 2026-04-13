@@ -3,6 +3,8 @@ require 'rails_helper'
 RSpec.describe 'GraphQL API', type: :request do
   let!(:design) { Design.create!(title: 'Test Design') }
   let!(:state) { design.create_design_state!(state_json: { 'walls' => 1 }, last_saved_at: Time.current) }
+  let!(:session) { design.design_sessions.create!(token: 'test-token') }
+  let!(:member) { SessionMember.create!(design_session: session, display_name: 'Alice', role: 'contractor', permission: 'editor') }
 
   describe 'applyMaterial mutation' do
     let(:query) do
@@ -29,7 +31,8 @@ RSpec.describe 'GraphQL API', type: :request do
           region: 'walls',
           materialId: '2',
           actorName: 'Alice',
-          clientTxnId: 'txn-1'
+          clientTxnId: 'txn-1',
+          designSessionToken: session.token
         }
       }
     end
@@ -52,7 +55,7 @@ RSpec.describe 'GraphQL API', type: :request do
     it 'handles conflicts deterministically' do
       # Simulate a recent event by someone else
       DesignEvent.create!(
-        design: design,
+        design_session: session,
         event_type: 'apply_material',
         region: 'walls',
         actor_name: 'Bob',
@@ -74,7 +77,7 @@ RSpec.describe 'GraphQL API', type: :request do
   describe 'approveSuggestion mutation' do
     let(:suggest_event) do
       DesignEvent.create!(
-        design: design,
+        design_session: session,
         event_type: 'suggest_material',
         region: 'roof',
         actor_name: 'Bob',
@@ -103,7 +106,8 @@ RSpec.describe 'GraphQL API', type: :request do
         input: {
           eventId: suggest_event.id.to_s,
           actorName: 'Alice',
-          clientTxnId: 'txn-approve-1'
+          clientTxnId: 'txn-approve-1',
+          designSessionToken: session.token
         }
       }
     end
@@ -128,7 +132,7 @@ RSpec.describe 'GraphQL API', type: :request do
       }.not_to change(DesignEvent, :count)
 
       json2 = JSON.parse(response.body)
-      expect(json2.dig('data', 'approveSuggestion', 'success']).to be true
+      expect(json2.dig('data', 'approveSuggestion', 'success')).to be true
     end
   end
 end

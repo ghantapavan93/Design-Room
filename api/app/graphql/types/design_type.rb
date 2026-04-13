@@ -6,8 +6,18 @@ module Types
     field :address, String, null: true
     field :status, String, null: true
     field :cover_image_url, String, null: true
+    field :base_media_url, String, null: true
+    field :masks_url_prefix, String, null: true
     field :final_version_id, Integer
+    field :mask_ready, Boolean, null: false
     field :created_at, GraphQL::Types::ISO8601DateTime, null: false
+    
+    field :project_messages, [Types::ProjectMessageType], null: false
+    field :region_locks, [Types::RegionLockType], null: false
+    field :region_comments, [Types::RegionCommentType], null: false
+    field :elements, [Types::ElementType], null: false
+    field :design_exports, [Types::DesignExportType], null: false
+    field :share_links, [Types::ShareLinkType], null: false
     
     field :state, Types::DesignStateType, null: true
     field :versions, [Types::DesignVersionType], null: false

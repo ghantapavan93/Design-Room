@@ -1,6 +1,7 @@
 require "active_support/core_ext/integer/time"
 
 Rails.application.configure do
+  config.hosts.clear
   config.enable_reloading = true
   config.eager_load = false
   config.consider_all_requests_local = true
@@ -13,10 +14,7 @@ Rails.application.configure do
     config.cache_store = :null_store
   end
   config.action_cable.mount_path = "/cable"
-  config.action_cable.allowed_request_origins = [
-    "http://localhost:3001",
-    "http://127.0.0.1:3001"
-  ]
+  config.action_cable.allowed_request_origins = [/http:\/\/.*/, /https:\/\/.*/]
   config.action_cable.disable_request_forgery_protection = true
 
   config.active_support.deprecation = :log

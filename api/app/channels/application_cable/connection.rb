@@ -4,7 +4,12 @@ module ApplicationCable
 
     def connect
       self.design_session_token = request.params[:token]
-      reject_unauthorized_connection unless design_session_token
+      puts "ACTIONCABLE CONNECT - Token: #{self.design_session_token.inspect}"
+      if design_session_token.present?
+        puts "ACTIONCABLE CONNECT - Token: #{design_session_token}"
+      else
+        puts "ACTIONCABLE CONNECT - (Handshaking without token...)"
+      end
     end
   end
 end

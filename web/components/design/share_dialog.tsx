@@ -1,137 +1,149 @@
 import * as React from 'react';
 import { Dialog } from '../ui/dialog';
-import { Button } from '../ui/button';
 import { toast } from '../ui/toast';
+import { ShareLink } from '../../lib/types';
+import { formatTimeAgo } from '../../lib/time';
 
 interface ShareDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     shareLink: string | null;
     isLoading: boolean;
-    onCreateLink: (mode: 'live' | 'view', permission: 'suggester' | 'viewer') => void;
+    onCreateLink: (mode: 'live' | 'view', permission: 'editor' | 'suggester' | 'viewer') => void;
+    activeLinks?: ShareLink[];
+    onRevokeLink?: (linkId: string) => void;
 }
 
-export function ShareDialog({ open, onOpenChange, shareLink, isLoading, onCreateLink }: ShareDialogProps) {
+export function ShareDialog({ open, onOpenChange, shareLink, isLoading, onCreateLink, activeLinks = [], onRevokeLink }: ShareDialogProps) {
     const [mode, setMode] = React.useState<'live' | 'view'>('live');
-    const [permission, setPermission] = React.useState<'suggester' | 'viewer'>('suggester');
+    const [permission, setPermission] = React.useState<'editor' | 'suggester' | 'viewer'>('suggester');
 
     React.useEffect(() => {
-        if (open) {
-            onCreateLink(mode, mode === 'live' ? permission : 'viewer');
+        if (open && shareLink === null) {
+            // Optional auto-create link behavior can be managed by parent or here if needed
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, mode, permission]);
+    }, [open, shareLink]);
 
-    const handleCopy = () => {
-        if (shareLink) {
-            navigator.clipboard.writeText(shareLink);
-            toast({ title: 'Link copied to clipboard', variant: 'success' });
-        }
+    const handleCopy = (linkStr: string) => {
+        navigator.clipboard.writeText(linkStr);
+        toast({ title: 'Link copied to clipboard', variant: 'success' });
     };
+
+    const validLinks = activeLinks.filter(l => !l.revokedAt);
 
     return (
         <Dialog
             open={open}
             onOpenChange={onOpenChange}
-            title="Share Design Room"
-            description="Invite homeowners or contractors to review and collaborate."
+            title="Invite Collaborators"
+            description="Generate a secure link to share your live session or a static snapshot."
         >
-            <div className="mt-4 space-y-4 text-sm" style={{ color: 'var(--text-primary)' }}>
-
-                <div className="space-y-2">
-                    <label className="font-medium text-xs tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>Share Type</label>
-                    <div className="grid grid-cols-2 gap-2">
+            <div className="mt-8 space-y-8" style={{ color: 'var(--text-secondary)' }}>
+                <div className="space-y-3">
+                    <label className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em] ml-1">Access Channel</label>
+                    <div className="grid grid-cols-2 gap-3">
                         <label
-                            className="border rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all"
+                            className="group border rounded-2xl p-4 cursor-pointer flex flex-col gap-2 transition-all hover:scale-[1.02] shadow-2xl relative overflow-hidden"
                             style={{
-                                borderColor: mode === 'live' ? '#60a5fa' : 'var(--border-subtle)',
-                                background: mode === 'live' ? 'rgba(96,165,250,0.1)' : 'transparent',
+                                borderColor: mode === 'live' ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.06)',
+                                background: mode === 'live' ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.03)',
                             }}
                         >
-                            <div className="flex items-center gap-2">
-                                <input type="radio" name="mode" className="text-blue-500" checked={mode === 'live'} onChange={() => setMode('live')} />
-                                <span className="font-semibold text-sm">Live Room</span>
+                            <div className="flex items-center gap-3">
+                                <input type="radio" name="mode" className="text-blue-500 bg-transparent" style={{ borderColor: 'var(--border-default)' }} checked={mode === 'live'} onChange={() => setMode('live')} />
+                                <span className="font-black text-xs uppercase tracking-tight" style={{ color: 'var(--text-primary)' }}>Live Room</span>
                             </div>
-                            <span className="text-xs ml-6" style={{ color: 'var(--text-muted)' }}>Real-time collaboration with presence.</span>
+                            <span className="text-[10px] font-bold text-neutral-500 leading-relaxed uppercase tracking-widest pl-6">Real-time sync · Active presence</span>
                         </label>
                         <label
-                            className="border rounded-xl p-3 cursor-pointer flex flex-col gap-1 transition-all"
+                            className="group border rounded-2xl p-4 cursor-pointer flex flex-col gap-2 transition-all hover:scale-[1.02] shadow-sm relative overflow-hidden"
                             style={{
-                                borderColor: mode === 'view' ? '#60a5fa' : 'var(--border-subtle)',
-                                background: mode === 'view' ? 'rgba(96,165,250,0.1)' : 'transparent',
+                                borderColor: mode === 'view' ? 'rgba(59,130,246,0.5)' : 'var(--border-subtle)',
+                                background: mode === 'view' ? 'rgba(59,130,246,0.05)' : 'var(--bg-hover)',
                             }}
                         >
-                            <div className="flex items-center gap-2">
-                                <input type="radio" name="mode" className="text-blue-500" checked={mode === 'view'} onChange={() => setMode('view')} />
-                                <span className="font-semibold text-sm">View Only</span>
+                            <div className="flex items-center gap-3">
+                                <input type="radio" name="mode" className="text-blue-500 bg-transparent" style={{ borderColor: 'var(--border-default)' }} checked={mode === 'view'} onChange={() => setMode('view')} />
+                                <span className="font-black text-xs uppercase tracking-tight" style={{ color: 'var(--text-primary)' }}>Snapshot</span>
                             </div>
-                            <span className="text-xs ml-6" style={{ color: 'var(--text-muted)' }}>For final handoffs. Cannot be edited.</span>
+                            <span className="text-[10px] font-bold text-neutral-500 leading-relaxed uppercase tracking-widest pl-6">View only · Final handoff</span>
                         </label>
                     </div>
                 </div>
 
                 {mode === 'live' && (
-                    <div className="space-y-2 pt-2">
-                        <label className="font-medium text-xs tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>Permissions</label>
+                    <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em] ml-1">Collaborator Role</label>
                         <select
                             value={permission}
                             onChange={(e) => setPermission(e.target.value as any)}
-                            className="w-full rounded-lg p-2.5 text-sm appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)' }}
+                            className="w-full rounded-2xl p-4 text-[11px] font-black uppercase tracking-widest appearance-none focus:outline-none ring-1 transition-all shadow-sm"
+                            style={{ background: 'var(--bg-hover)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', boxShadow: 'var(--shadow-sm)' }}
                         >
-                            <option value="suggester">Can Suggest (Homeowner)</option>
-                            <option value="editor">Can Edit & Approve (Contractor)</option>
-                            <option value="viewer">Can View</option>
+                            <option value="suggester">Homeowner (Suggester)</option>
+                            <option value="editor">Contractor (Editor)</option>
+                            <option value="viewer">Guest (Viewer)</option>
                         </select>
-                        <p className="text-xs italic mt-1" style={{ color: 'var(--text-muted)' }}>
-                            {permission === 'suggester' ? '"Can Suggest" allows the user to propose changes that you must approve.' : '"Can Edit" grants full control over the design.'}
+                        <p className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest leading-relaxed mt-2 px-1">
+                            {permission === 'suggester' && 'Proposals undergo contractor approval.'}
+                            {permission === 'editor' && 'Full design and administrative access granted.'}
+                            {permission === 'viewer' && 'Read-only access. Cannot propose or edit.'}
                         </p>
                     </div>
                 )}
 
-                <div className="pt-4 flex flex-col gap-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                    {isLoading ? (
-                        <div className="flex items-center justify-center p-4">
-                            <div className="spinner" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'var(--text-primary)' }} />
-                        </div>
-                    ) : shareLink ? (
-                        <div className="flex flex-col gap-2">
-                            <label className="font-medium text-xs tracking-wider uppercase" style={{ color: 'var(--text-muted)' }}>Secure Link</label>
-                            <div className="flex gap-2 items-center p-2 rounded-lg transition-all" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}>
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={shareLink}
-                                    className="flex-1 bg-transparent border-none text-sm focus:ring-0 px-2"
-                                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                                    style={{ color: 'var(--text-primary)' }}
-                                />
-                                <button
-                                    onClick={handleCopy}
-                                    className="shrink-0 px-4 py-1.5 rounded-md text-xs font-semibold transition-all hover:opacity-80"
-                                    style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
-                                >
-                                    Copy Link
-                                </button>
-                            </div>
-                        </div>
-                    ) : null}
-
-                    {mode === 'view' && (
-                        <div className="mt-2 p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                            <div>
-                                <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Export Design Pack</p>
-                                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Download all angles and specs as .zip</p>
-                            </div>
-                            <button
-                                className="px-4 py-2 rounded-md text-xs font-semibold"
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-subtle)' }}
-                            >
-                                Generate
-                            </button>
+                <div className="pt-2 flex flex-col gap-4">
+                    <button
+                        onClick={() => onCreateLink(mode, mode === 'live' ? permission : 'viewer')}
+                        disabled={isLoading}
+                        className="w-full px-6 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-md flex justify-center items-center h-12"
+                        style={{ background: 'var(--text-primary)', color: 'var(--text-inverse)' }}
+                    >
+                        {isLoading ? <div className="w-5 h-5 rounded-full border-2 border-t-transparent border-white animate-spin" /> : 'Generate Link'}
+                    </button>
+                    {shareLink && !isLoading && (
+                        <div className="flex gap-2 mt-2 items-center">
+                           <input type="text" readOnly value={shareLink} className="flex-1 rounded-lg text-xs px-3 bg-neutral-100 py-3 dark:bg-neutral-800 font-mono overflow-x-auto" />
+                           <button onClick={() => handleCopy(shareLink)} className="px-5 rounded-lg text-white bg-blue-600 text-xs py-3 whitespace-nowrap font-bold hover:bg-blue-700 active:scale-95 transition-all">Copy</button>
                         </div>
                     )}
                 </div>
+
+                {validLinks.length > 0 && (
+                    <div className="pt-8 border-t border-neutral-200 dark:border-neutral-800">
+                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-1 mb-4 block">Active Links</label>
+                        <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
+                            {validLinks.map(link => {
+                                const origin = typeof window !== 'undefined' ? window.location.origin : '';
+                                const fullUrl = `${origin}/design/${link.mode}/${link.token}`;
+                                return (
+                                <div key={link.id} className="p-3 rounded-xl border bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-800">
+                                                {link.mode === 'live' ? link.permission : 'Snap'}
+                                            </span>
+                                            <span className="text-[10px] text-neutral-500">{formatTimeAgo(link.createdAt)}</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => onRevokeLink?.(link.id)}
+                                            className="text-[10px] text-red-500 hover:text-red-600 px-2 font-bold uppercase tracking-wider"
+                                        >
+                                            Revoke
+                                        </button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input type="text" readOnly value={fullUrl} className="flex-1 bg-transparent border-none text-[10px] font-mono tracking-widest p-0 focus:ring-0 text-neutral-800 dark:text-neutral-200" />
+                                        <button onClick={() => handleCopy(fullUrl)} className="text-[10px] text-neutral-500 hover:text-neutral-800 font-bold uppercase shrink-0">Copy</button>
+                                    </div>
+                                    {link.lastAccessedAt && (
+                                        <span className="text-[9px] text-neutral-400 font-bold">Last accessed: {formatTimeAgo(link.lastAccessedAt)}</span>
+                                    )}
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                )}
             </div>
         </Dialog>
     );

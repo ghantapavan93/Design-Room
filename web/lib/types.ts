@@ -5,10 +5,10 @@ export interface MaterialPreset {
     category: DesignRegion;
     name: string;
     brand: string;
-    color_family?: string;
-    cost_band?: '$' | '$$' | '$$$';
+    colorFamily?: string;
+    costBand?: '$' | '$$' | '$$$';
     sku?: string;
-    unit_type?: 'sqft' | 'linear_ft' | 'each';
+    unitType?: 'sqft' | 'linear_ft' | 'each';
     swatchHex: string;
     thumbnailUrl?: string;
 }
@@ -21,7 +21,7 @@ export interface DesignEvent {
     actorRole?: 'contractor' | 'homeowner';
     actorPermission?: 'editor' | 'suggester' | 'viewer';
     eventType: 'apply_material' | 'suggest_material' | 'approve_suggestion' | 'reject_suggestion' | 'save_version' | 'restore_version' | 'revert_event';
-    region?: DesignRegion;
+    region: string; // Either a DesignRegion or an Element ID
     fromMaterialId?: string;
     toMaterialId?: string;
     note?: string;
@@ -31,7 +31,7 @@ export interface DesignEvent {
 
 export interface DesignState {
     id: string;
-    stateJson: Record<DesignRegion, string>;
+    stateJson: Record<string, string>; // Keys can be DesignRegion or Element ID
     lastEventId?: number;
     lastSavedAt?: string;
 }
@@ -40,27 +40,52 @@ export interface DesignVersion {
     id: string;
     designId: string;
     label: string;
-    snapshotStateJson: Record<DesignRegion, string>;
+    snapshotStateJson: Record<string, string>; // Keys can be DesignRegion or Element ID
     createdBy: string;
     createdAt: string;
+}
+
+export interface ProjectMessage {
+    id: string;
+    authorName: string;
+    authorRole: 'contractor' | 'homeowner';
+    body: string;
+    createdAt: string;
+}
+
+export interface DesignElement {
+    id: string;
+    label: string;
+    kind: string; // 'window', 'door', 'trim', 'roof', 'walls', 'garage'
+    groupKey: string; // The fallback category
+    maskUrl: string;
+    sortOrder: number;
 }
 
 export interface Design {
     id: string;
     title: string;
+    baseMediaUrl?: string;
+    masksUrlPrefix?: string;
+    elements?: DesignElement[];
     state: DesignState;
     versions: DesignVersion[];
     recentEvents: DesignEvent[];
     createdAt: string;
     finalVersionId?: number;
+    maskReady?: boolean;
+    projectMessages?: any[];
+    regionLocks?: any[];
+    regionComments?: RegionComment[];
+    shareLinks?: ShareLink[];
 }
-
 export interface SessionMember {
     id: string;
     displayName: string;
     role: 'contractor' | 'homeowner';
     permission: 'editor' | 'suggester' | 'viewer';
     lastSeenAt?: string;
+    participantId?: string;
 }
 
 export interface ShareLink {
@@ -71,6 +96,10 @@ export interface ShareLink {
     permission?: 'editor' | 'suggester' | 'viewer';
     design: Design;
     designSessionToken?: string;
+    expiresAt?: string;
+    revokedAt?: string;
+    lastAccessedAt?: string;
+    createdAt: string;
 }
 
 export interface MutationResponse<T = any> {
@@ -80,4 +109,25 @@ export interface MutationResponse<T = any> {
     event?: DesignEvent;
     design?: Design;
     data?: T;
+}
+
+export interface RegionComment {
+    id: string;
+    region: string;
+    authorName: string;
+    authorRole: 'contractor' | 'homeowner';
+    body: string;
+    createdAt: string;
+    resolvedAt?: string;
+}
+
+export interface DesignExport {
+    id: string;
+    designId: string;
+    designVersionId?: string;
+    exportedBy: string;
+    exportType: 'proposal' | 'summary';
+    versionLabel?: string;
+    estimateTotal?: number;
+    createdAt: string;
 }

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mask Coordinate Picker</title>
+</head>
+
+<body style="margin:0; background:#222;">
+    <div style="position:relative; display:inline-block;">
+        <img id="img" src="/demo/craftsman/base.jpg" style="display:block; width:1024px; height:1024px;" />
+        <div id="coords"
+            style="position:fixed; top:10px; left:10px; background:rgba(0,0,0,0.8); color:lime; font:14px monospace; padding:10px; z-index:999;">
+        </div>
+        <div id="log"
+            style="position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.8); color:white; font:12px monospace; padding:10px; z-index:999; max-height:90vh; overflow-y:auto; width:400px;">
+        </div>
+    </div>
+    <script>
+        const img = document.getElementById('img');
+        const coordsDiv = document.getElementById('coords');
+        const logDiv = document.getElementById('log');
+        const points = [];
+
+        img.addEventListener('mousemove', (e) => {
+            const rect = img.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+            coordsDiv.textContent = `X: ${x}, Y: ${y}`;
+        });
+
+        img.addEventListener('click', (e) => {
+            const rect = img.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+            points.push([x, y]);
+            logDiv.innerHTML += `[${x}, ${y}]<br>`;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'c') {
+                logDiv.innerHTML = '';
+                points.length = 0;
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -9,6 +9,12 @@ module Types
       Design.find(id)
     end
 
+    field :designs, [Types::DesignType], null: false
+
+    def designs
+      Design.order(created_at: :desc)
+    end
+
     field :materials, [Types::MaterialPresetType], null: false do
       argument :category, String, required: false
       argument :search, String, required: false
@@ -17,7 +23,7 @@ module Types
     def materials(category: nil, search: nil)
       scope = MaterialPreset.all
       scope = scope.where(category: category) if category.present?
-      scope = scope.where('name ILIKE ?', "%#{search}%") if search.present?
+      scope = scope.where('name ILIKE ?', "%#{sanitize_sql_like(search)}%") if search.present?
       scope
     end
 
@@ -26,7 +32,18 @@ module Types
     end
 
     def share_link(token:)
-      ShareLink.find_by!(token: token)
+      link = ShareLink.find_by!(token: token)
+      
+      if link.revoked?
+        raise GraphQL::ExecutionError, "This share link has been revoked."
+      end
+      
+      if link.expired?
+        raise GraphQL::ExecutionError, "This share link has expired."
+      end
+      
+      link.update_column(:last_accessed_at, Time.current)
+      link
     end
 
     field :events, [Types::DesignEventType], null: false do

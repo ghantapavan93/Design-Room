@@ -1,6 +1,6 @@
 import * as React from "react"
 
-export function Drawer({ open, onOpenChange, side = 'right', title, children }: { open: boolean, onOpenChange: (open: boolean) => void, side?: 'left' | 'right', title?: string, children: React.ReactNode }) {
+export function Drawer({ open, onOpenChange, side = 'right', title, panelClassName, contentClassName, children }: { open: boolean, onOpenChange: (open: boolean) => void, side?: 'left' | 'right', title?: string, panelClassName?: string, contentClassName?: string, children: React.ReactNode }) {
     React.useEffect(() => {
         const onEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && open) {
@@ -21,7 +21,7 @@ export function Drawer({ open, onOpenChange, side = 'right', title, children }: 
             if (e.target === e.currentTarget) onOpenChange(false);
         }}>
             <div
-                className={`fixed inset-y-0 ${sideClass} z-50 w-full max-w-sm bg-white shadow-xl animate-in ${slideClass} duration-300 flex flex-col`}
+                className={`fixed inset-y-0 ${sideClass} z-50 w-full ${panelClassName || 'max-w-sm'} bg-white shadow-xl animate-in ${slideClass} duration-300 flex flex-col`}
                 role="dialog"
                 aria-modal="true"
             >
@@ -35,7 +35,7 @@ export function Drawer({ open, onOpenChange, side = 'right', title, children }: 
                         &times;
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className={`flex-1 ${contentClassName || 'overflow-y-auto p-6'}`}>
                     {children}
                 </div>
             </div>

@@ -18,12 +18,22 @@ export default function ViewOnlyPage() {
     const [design, setDesign] = React.useState<Design | null>(null);
     const [presets, setPresets] = React.useState<Record<string, MaterialPreset>>({});
     const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState<string | null>(null);
 
     React.useEffect(() => {
         async function load() {
             try {
                 const linkRes = await api.graphqlRequest<any>(LINK_QUERY, { token });
-                const designId = linkRes.shareLink.design.id;
+                const link = linkRes.shareLink;
+
+                // Only allow view-mode links on this page
+                if (link.mode !== 'view') {
+                    toast({ title: "This link is not a view-only link. Redirecting...", variant: "destructive" });
+                    window.location.href = `/design/live/${token}`;
+                    return;
+                }
+
+                const designId = link.design.id;
 
                 const [designRes, matRes] = await Promise.all([
                     api.graphqlRequest<any>(DESIGN_QUERY, { id: designId }),
@@ -37,9 +47,15 @@ export default function ViewOnlyPage() {
 
                 setPresets(map);
                 setDesign(designRes.design);
-            } catch (e) {
-                console.error(e);
-                toast({ title: "Failed to load view link", variant: "destructive" });
+            } catch (e: any) {
+                const msg = e?.message || '';
+                if (msg.includes('revoked')) {
+                    setError('This share link has been revoked by the project owner.');
+                } else if (msg.includes('expired')) {
+                    setError('This share link has expired.');
+                } else {
+                    setError('Failed to load design.');
+                }
             } finally {
                 setLoading(false);
             }
@@ -68,8 +84,41 @@ export default function ViewOnlyPage() {
         return <div className="h-screen w-full flex items-center justify-center p-4">Loading preview...</div>;
     }
 
+    if (error) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-neutral-50">
+                <div className="flex flex-col items-center gap-5 max-w-md text-center px-6">
+                    <div className="w-16 h-16 rounded-3xl bg-red-50 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-neutral-900 mb-2">Link Unavailable</h2>
+                        <p className="text-sm text-neutral-500">{error}</p>
+                    </div>
+                    <a href="/" className="px-5 py-2.5 rounded-xl bg-neutral-900 text-white text-sm font-semibold">Go Home</a>
+                </div>
+            </div>
+        );
+    }
+
     if (!design) {
         return <div className="h-screen w-full flex items-center justify-center p-4">Design not found.</div>;
+    }
+
+    if (design.maskReady === false) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-neutral-900">
+                <div className="flex flex-col items-center gap-6 max-w-sm text-center px-6">
+                    <div className="w-20 h-20 border-4 border-neutral-700 border-t-white rounded-full animate-spin shadow-lg" />
+                    <div>
+                        <h2 className="text-xl font-black text-white tracking-tight mb-2">Processing Your Design...</h2>
+                        <p className="text-sm font-medium text-neutral-400">Our engines are parsing the property boundaries and generating high-fidelity structural masks.</p>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     const matState = design.state.stateJson as Record<DesignRegion, string>;
@@ -108,10 +157,11 @@ export default function ViewOnlyPage() {
 
                 <div className="flex-1 h-full relative">
                     <PreviewCanvas
-                        baseImageUrl="/demo/exterior_base.jpg"
-                        masksUrlPrefix="/demo"
+                        baseImageUrl={design.baseMediaUrl || "/demo/coastal/base.jpg"}
+                        masksUrlPrefix={design.masksUrlPrefix || "/demo/coastal"}
                         selectedMaterials={matState}
                         presetsMap={presets}
+                        selectedRegions={[]}
                     />
                 </div>
             </div>

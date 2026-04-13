@@ -4,6 +4,7 @@ import { SessionMember } from '../../lib/types';
 interface LivePresenceBarProps {
     members: SessionMember[];
     isConnected: boolean;
+    onToggleChat?: () => void;
 }
 
 const ROLE_COLORS: Record<string, string> = {
@@ -11,13 +12,18 @@ const ROLE_COLORS: Record<string, string> = {
     homeowner: '#f97316',
 };
 
-export function LivePresenceBar({ members, isConnected }: LivePresenceBarProps) {
+export function LivePresenceBar({ members, isConnected, onToggleChat }: LivePresenceBarProps) {
     const getInitials = (name: string) => name.substring(0, 2).toUpperCase();
 
     return (
         <div
-            className="absolute top-4 right-5 z-20 flex items-center gap-3 px-3.5 py-2 rounded-full glass"
-            style={{ boxShadow: 'var(--shadow-sm)' }}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full glass"
+            style={{
+                boxShadow: '0 4px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05)',
+                background: 'rgba(255,255,255,0.85)',
+                backdropFilter: 'blur(12px) saturate(180%)',
+                border: '1px solid rgba(0,0,0,0.08)'
+            }}
         >
             {/* Connection indicator */}
             <div className="flex items-center gap-1.5">
@@ -35,9 +41,27 @@ export function LivePresenceBar({ members, isConnected }: LivePresenceBarProps) 
                     )}
                 </div>
                 <span className="text-xs font-semibold" style={{ color: isConnected ? 'var(--success)' : 'var(--danger)' }}>
-                    {isConnected ? 'Live' : 'Reconnecting'}
+                    {isConnected ? `Live · ${Math.max(1, members.length)} in room` : 'Reconnecting...'}
                 </span>
             </div>
+
+            {/* Global Chat Toggle */}
+            <div className="flex items-center ml-1">
+                <button
+                    onClick={onToggleChat}
+                    className="p-2 rounded-lg transition-all hover:bg-black/5 hover:scale-110 active:scale-95 group/chat"
+                    title="Open Project Chat"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                    onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                >
+                    <svg className="w-4.5 h-4.5 group-hover/chat:drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                </button>
+            </div>
+
+            <div className="w-px h-4 mx-1" style={{ background: 'var(--border-default)' }} />
 
             {/* Member avatars */}
             {members.length > 0 && (
@@ -57,10 +81,11 @@ export function LivePresenceBar({ members, isConnected }: LivePresenceBarProps) 
                                     title={`${member.displayName} (${member.role})`}
                                 >
                                     <div
-                                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 cursor-default"
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-black ring-2 cursor-pointer transition-all duration-300 hover:scale-110 hover:shadow-lg hover:-translate-y-0.5 active:scale-95 shadow-inner"
                                         style={{
                                             background: bg,
-                                            boxShadow: '0 0 0 2px var(--bg-elevated)',
+                                            boxShadow: '0 0 0 2px var(--bg-elevated), 0 4px 12px rgba(0,0,0,0.3)',
+                                            borderColor: 'rgba(255,255,255,0.2)'
                                         }}
                                     >
                                         {getInitials(member.displayName)}
@@ -83,7 +108,7 @@ export function LivePresenceBar({ members, isConnected }: LivePresenceBarProps) 
                                         }}
                                     >
                                         <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{member.displayName}</p>
-                                        <p className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>{member.role} · {member.permission}</p>
+                                        <p className="text-xs lowercase" style={{ color: 'var(--text-muted)' }}>{member.role === 'homeowner' ? 'homeowner' : 'contractor'} {member.permission === 'editor' ? 'editing' : 'viewing'}</p>
                                     </div>
                                 </div>
                             );
@@ -92,9 +117,7 @@ export function LivePresenceBar({ members, isConnected }: LivePresenceBarProps) 
                 </>
             )}
 
-            {members.length === 0 && (
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Waiting for others...</span>
-            )}
+
         </div>
     );
 }

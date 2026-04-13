@@ -1,22 +1,24 @@
 import * as React from 'react';
-import { MaterialPreset } from '../../lib/types';
+import { MaterialPreset, DesignElement } from '../../lib/types';
 import { DesignRegion, DESIGN_REGIONS } from '../../lib/regions';
 import { MaterialCard } from './material_card';
 import { getRecentMaterials, addRecentMaterial } from '../../lib/recent_materials';
 
 interface MaterialPanelProps {
     presets: MaterialPreset[];
-    selectedRegions: DesignRegion[];
-    onRegionChange: (regions: DesignRegion[]) => void;
-    selectedMaterials: Record<DesignRegion, string>;
-    onMaterialSelect: (regions: DesignRegion[], material: MaterialPreset) => void;
-    pendingSuggestion?: { region: DesignRegion; preset: MaterialPreset; actorName: string };
+    selectedRegions: string[];
+    onRegionChange: (regions: string[]) => void;
+    selectedMaterials: Record<string, string>;
+    onMaterialSelect: (regions: string[], material: MaterialPreset) => void;
+    pendingSuggestion?: { region: string; preset: MaterialPreset; actorName: string };
     isSuggester?: boolean;
+    activeElementName?: string;
+    elements?: DesignElement[];
 }
 
 // Extended visual categories matching Hover's exact sidebar layout.
 // Garage → maps to 'garage', Paint → 'walls', Door → 'door'
-const VISUAL_CATEGORIES: { label: string; region: DesignRegion; icon: string }[] = [
+const VISUAL_CATEGORIES: { label: string; region: string; icon: string }[] = [
     { label: 'Garage', region: 'garage', icon: '🚗' },
     { label: 'Paint', region: 'walls', icon: '🎨' },
     { label: 'Roof', region: 'roof', icon: '🔺' },
@@ -28,14 +30,16 @@ const VISUAL_CATEGORIES: { label: string; region: DesignRegion; icon: string }[]
 // Brand grouping
 const BRANDS = ['All brands', 'Sherwin-Williams', 'Benjamin Moore', 'Valspar', 'Dunn-Edwards', 'Behr', 'James Hardie', 'Owens Corning'];
 
-// Color filter presets matching Hover's swatches
+// Color filter presets matching visual swatches but mapping to Color Families
 const COLOR_FILTERS = [
-    { label: 'Dark Night', hex: '#2a2e35' },
-    { label: 'Waller Green', hex: '#2e3b2f' },
-    { label: 'Desert Sand', hex: '#d4c4a0' },
-    { label: 'Carbon Dating', hex: '#5a5f63' },
-    { label: 'Coastal Blue', hex: '#4a7fa5' },
-    { label: 'Clay', hex: '#c4855a' },
+    { label: 'Black / Dark', hex: '#212121', family: 'Black' },
+    { label: 'Gray / Slate', hex: '#5c5e60', family: 'Gray' },
+    { label: 'White / Cream', hex: '#f5f5f5', family: 'White' },
+    { label: 'Beige / Tan', hex: '#d6cba8', family: 'Beige' },
+    { label: 'Blue / Coastal', hex: '#4a7fa5', family: 'Blue' },
+    { label: 'Red / Brick', hex: '#a4463b', family: 'Red' },
+    { label: 'Brown / Earth', hex: '#6b635c', family: 'Brown' },
+    { label: 'Green / Sage', hex: '#8d9c82', family: 'Green' },
 ];
 
 export function MaterialPanel({
@@ -45,37 +49,75 @@ export function MaterialPanel({
     selectedMaterials,
     onMaterialSelect,
     pendingSuggestion,
-    isSuggester
+    isSuggester,
+    activeElementName,
+    elements = [],
 }: MaterialPanelProps) {
     const [searchQuery, setSearchQuery] = React.useState('');
     const [selectedBrand, setSelectedBrand] = React.useState('All brands');
     const [brandMenuOpen, setBrandMenuOpen] = React.useState(false);
-    const [colorFilter, setColorFilter] = React.useState<string | null>(null);
+    const [colorFamilyFilter, setColorFamilyFilter] = React.useState<string | null>(null);
+    const [styleFilter, setStyleFilter] = React.useState<string | null>(null);
     const [recentMaterials, setRecentMaterials] = React.useState<MaterialPreset[]>([]);
 
     React.useEffect(() => {
         setRecentMaterials(getRecentMaterials());
     }, []);
 
-    // active region determines which presets to show in the list
-    const activeRegion = selectedRegions.length > 0 ? selectedRegions[selectedRegions.length - 1] : 'walls';
+    // Correctly map the active selection to a material category
+    const activeCategory = React.useMemo(() => {
+        if (selectedRegions.length === 0) return 'walls';
+        const lastId = selectedRegions[selectedRegions.length - 1];
+        const element = elements.find(e => e.id === lastId);
+        if (element) return element.groupKey;
+        return lastId; // fallback to 'walls', 'roof', etc.
+    }, [selectedRegions, elements]);
 
-    const handleVisualCategory = (cat: typeof VISUAL_CATEGORIES[number]) => {
+    // Automatically clear specific filters when changing categories to ensure "Automatic Show All"
+    React.useEffect(() => {
+        setSearchQuery('');
+        setColorFamilyFilter(null);
+        setStyleFilter(null);
+    }, [activeCategory]);
+
+    const handleVisualCategory = (cat: { label: string; region: string; icon: string }) => {
         onRegionChange([cat.region]);
+        setSearchQuery('');
+        setColorFamilyFilter(null);
+        setStyleFilter(null);
     };
 
     const filteredPresets = React.useMemo(() => {
-        return presets.filter(p =>
-            // Depending on the dataset, if the preset's category doesn't strictly match the new DesignRegions
-            // we will fallback to matching 'walls' with 'Paint'/'Walls' or 'trim' with 'Garage'/'Door'.
-            // For now, assume exact match or default safe fallback.
-            (p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim') || (activeRegion === 'walls' && p.category === 'walls')) &&
-            (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                p.brand.toLowerCase().includes(searchQuery.toLowerCase())) &&
-            (selectedBrand === 'All brands' || p.brand === selectedBrand) &&
-            (!colorFilter || p.swatchHex === colorFilter)
-        );
-    }, [presets, activeRegion, searchQuery, selectedBrand, colorFilter]);
+        return presets.filter(p => {
+            // Match the material category to our active selection category
+            const categoryMatch = p.category === activeCategory ||
+                (activeCategory === 'walls' && p.category === 'walls') ||
+                (activeCategory === 'trim' && (p.category === 'trim' || p.category === 'walls')) ||
+                ((activeCategory === 'door' || activeCategory === 'garage') && (p.category === activeCategory || p.category === 'trim'));
+
+            if (!categoryMatch) return false;
+
+            const searchMatch = !searchQuery ||
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.brand.toLowerCase().includes(searchQuery.toLowerCase());
+
+            if (!searchMatch) return false;
+
+            const brandMatch = selectedBrand === 'All brands' || p.brand === selectedBrand;
+            if (!brandMatch) return false;
+
+            const colorMatch = !colorFamilyFilter || p.colorFamily === colorFamilyFilter;
+            if (!colorMatch) return false;
+
+            const styleMatch = !styleFilter || (
+                styleFilter === 'Modern Charcoal' ? ['black', 'gray', 'charcoal', 'iron', 'modern'].some(k => p.name.toLowerCase().includes(k)) :
+                    styleFilter === 'Pacific Coast' ? ['blue', 'white', 'mist', 'coastal', 'navy', 'pacific'].some(k => p.name.toLowerCase().includes(k)) :
+                        styleFilter === 'Desert Oasis' ? ['beige', 'sand', 'tan', 'terra', 'brown', 'walnut', 'oasis'].some(k => p.name.toLowerCase().includes(k)) : true
+            );
+
+            return styleMatch;
+        });
+    }, [presets, activeCategory, searchQuery, selectedBrand, colorFamilyFilter, styleFilter]);
 
     const resultCount = filteredPresets.length;
 
@@ -88,7 +130,7 @@ export function MaterialPanel({
             <div className="px-5 pt-5 pb-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="flex items-center justify-between mb-4">
                     <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
-                        Customize
+                        Customize {activeElementName && <span style={{ color: 'var(--text-primary)' }}>• {activeElementName}</span>}
                     </span>
                     {isSuggester && (
                         <span className="pill text-xs" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
@@ -102,7 +144,7 @@ export function MaterialPanel({
                     <div className="flex flex-wrap gap-1.5">
                         {VISUAL_CATEGORIES.map(cat => {
                             const hasSuggestion = pendingSuggestion?.region === cat.region;
-                            const isActive = activeRegion === cat.region;
+                            const isActive = activeCategory === cat.region;
                             return (
                                 <button
                                     key={cat.label}
@@ -177,7 +219,7 @@ export function MaterialPanel({
                                         key={brand}
                                         className="w-full text-left px-4 py-2.5 text-sm transition-colors"
                                         style={{
-                                            color: selectedBrand === brand ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                            color: 'var(--text-primary)',
                                             background: selectedBrand === brand ? 'var(--bg-active)' : 'transparent',
                                         }}
                                         onClick={() => { setSelectedBrand(brand); setBrandMenuOpen(false); }}
@@ -204,11 +246,11 @@ export function MaterialPanel({
                         <button
                             key={cf.label}
                             title={cf.label}
-                            onClick={() => setColorFilter(colorFilter === cf.hex ? null : cf.hex)}
+                            onClick={() => setColorFamilyFilter(colorFamilyFilter === cf.family ? null : cf.family)}
                             className="w-6 h-6 rounded-full transition-all"
                             style={{
                                 background: cf.hex,
-                                outline: colorFilter === cf.hex ? `2px solid var(--text-primary)` : '2px solid transparent',
+                                outline: colorFamilyFilter === cf.family ? `2px solid var(--text-primary)` : '2px solid transparent',
                                 outlineOffset: '2px',
                                 boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                             }}
@@ -228,11 +270,14 @@ export function MaterialPanel({
                     ].map(style => (
                         <button
                             key={style.name}
-                            className="w-full flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-white/5 border border-transparent hover:border-white/10"
+                            className="w-full flex items-center gap-3 p-2 rounded-xl transition-all border"
+                            style={{
+                                background: styleFilter === style.name ? 'var(--bg-active)' : 'transparent',
+                                borderColor: styleFilter === style.name ? 'var(--accent)' : 'transparent'
+                            }}
                             onClick={() => {
-                                // In a real app, this would trigger multiple apply_material events
-                                // For the demo, we'll just toast or set a visual hint
-                                setColorFilter(style.colors[0]);
+                                setStyleFilter(styleFilter === style.name ? null : style.name);
+                                setColorFamilyFilter(null);
                             }}
                         >
                             <div className="flex -space-x-1.5">
@@ -250,13 +295,13 @@ export function MaterialPanel({
             </div>
 
             {/* ── Result count ── */}
-            <div className="px-5 py-2.5 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{resultCount} results</span>
-                {(searchQuery || selectedBrand !== 'All brands' || colorFilter) && (
+            <div className="px-5 py-3 flex items-center justify-between mt-auto bg-white/5" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{resultCount} results</span>
+                {(searchQuery || selectedBrand !== 'All brands' || colorFamilyFilter || styleFilter) && (
                     <button
                         className="text-xs underline"
                         style={{ color: 'var(--text-muted)' }}
-                        onClick={() => { setSearchQuery(''); setSelectedBrand('All brands'); setColorFilter(null); }}
+                        onClick={() => { setSearchQuery(''); setSelectedBrand('All brands'); setColorFamilyFilter(null); setStyleFilter(null); }}
                     >
                         Clear filters
                     </button>
@@ -277,52 +322,92 @@ export function MaterialPanel({
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
 
                 {/* ── Recently Used (Empty Search Context) ── */}
-                {!searchQuery && selectedBrand === 'All brands' && !colorFilter && recentMaterials.filter(p => p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim')).length > 0 && (
+                {!searchQuery && selectedBrand === 'All brands' && !colorFamilyFilter && !styleFilter && recentMaterials.filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim')).length > 0 && (
                     <div>
                         <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Recently Used</p>
                         <div className="grid grid-cols-2 gap-2.5">
                             {recentMaterials
-                                .filter(p => p.category === activeRegion || (activeRegion === 'door' && p.category === 'trim') || (activeRegion === 'garage' && p.category === 'trim'))
-                                .map(preset => (
-                                    <MaterialCard
-                                        key={`recent-${preset.id}`}
-                                        preset={preset}
-                                        isSelected={selectedMaterials[activeRegion] === preset.id}
-                                        onSelect={(p) => {
-                                            addRecentMaterial(p);
-                                            setRecentMaterials(getRecentMaterials());
-                                            onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeRegion], p);
-                                        }}
-                                    />
-                                ))}
+                                .filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim'))
+                                .map(preset => {
+                                    const isSelected = selectedRegions.length > 0
+                                        ? selectedRegions.every(r => selectedMaterials[r] === preset.id)
+                                        : selectedMaterials[activeCategory] === preset.id;
+
+                                    return (
+                                        <MaterialCard
+                                            key={`recent-${preset.id}`}
+                                            preset={preset}
+                                            isSelected={isSelected}
+                                            onSelect={(p) => {
+                                                addRecentMaterial(p);
+                                                setRecentMaterials(getRecentMaterials());
+                                                onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeCategory], p);
+                                            }}
+                                        />
+                                    );
+                                })}
                         </div>
                     </div>
                 )}
 
                 {/* ── Main Catalog ── */}
                 <div>
-                    {!searchQuery && selectedBrand === 'All brands' && !colorFilter && (
+                    {!searchQuery && selectedBrand === 'All brands' && !colorFamilyFilter && !styleFilter && (
                         <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>All Options</p>
                     )}
                     <div className="grid grid-cols-2 gap-2.5">
-                        {filteredPresets.map(preset => (
-                            <MaterialCard
-                                key={preset.id}
-                                preset={preset}
-                                isSelected={selectedMaterials[activeRegion] === preset.id}
-                                onSelect={(p) => {
-                                    addRecentMaterial(p);
-                                    setRecentMaterials(getRecentMaterials());
-                                    onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeRegion], p);
-                                }}
-                            />
-                        ))}
+                        {filteredPresets.map(preset => {
+                            const isSelected = selectedRegions.length > 0
+                                ? selectedRegions.every(r => selectedMaterials[r] === preset.id)
+                                : selectedMaterials[activeCategory] === preset.id;
+
+                            return (
+                                <MaterialCard
+                                    key={preset.id}
+                                    preset={preset}
+                                    isSelected={isSelected}
+                                    onSelect={(p) => {
+                                        addRecentMaterial(p);
+                                        setRecentMaterials(getRecentMaterials());
+                                        onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeCategory], p);
+                                    }}
+                                />
+                            );
+                        })}
                         {filteredPresets.length === 0 && (
-                            <div className="col-span-2 text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                                <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <div className="col-span-2 text-center py-8">
+                                <svg className="w-8 h-8 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                 </svg>
-                                <p className="text-sm">No results</p>
+                                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No materials found</p>
+                                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Try adjusting your search criteria.</p>
+                                <button
+                                    className="px-4 py-2 rounded-full text-xs font-bold transition-all"
+                                    onClick={() => { setSearchQuery(''); setSelectedBrand('All brands'); setColorFamilyFilter(null); setStyleFilter(null); }}
+                                    style={{ background: 'var(--bg-active)', color: 'var(--text-primary)' }}
+                                    onMouseOver={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                    onMouseOut={e => e.currentTarget.style.background = 'var(--bg-active)'}
+                                >
+                                    Reset filters
+                                </button>
+
+                                <div className="mt-8 text-left">
+                                    <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Recommended</p>
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        {presets.filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim') || (activeCategory === 'walls' && p.category === 'walls')).slice(0, 2).map((preset) => (
+                                            <MaterialCard
+                                                key={`fallback-${preset.id}`}
+                                                preset={preset}
+                                                isSelected={selectedMaterials[activeCategory] === preset.id}
+                                                onSelect={(p) => {
+                                                    addRecentMaterial(p);
+                                                    setRecentMaterials(getRecentMaterials());
+                                                    onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeCategory], p);
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

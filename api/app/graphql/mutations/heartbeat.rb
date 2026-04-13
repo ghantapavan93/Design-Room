@@ -1,28 +1,26 @@
 module Mutations
   class Heartbeat < BaseMutation
     argument :design_session_token, String, required: true
-    argument :display_name, String, required: true
-    argument :role, String, required: true
-    argument :permission, String, required: true
+    argument :participant_id, String, required: true
 
     field :success, Boolean, null: false
     field :errors, [String], null: false
     field :members, GraphQL::Types::JSON, null: true
 
-    def resolve(design_session_token:, display_name:, role:, permission:)
-      session = DesignSession.find_by!(token: design_session_token)
+    def resolve(design_session_token:, participant_id:)
+      RegionLock.cleanup_expired!
 
-      member = SessionMember.find_or_initialize_by(
-        design_session_id: session.id,
-        display_name: display_name
-      )
+      session = DesignSession.find_by(token: design_session_token)
+      return { success: false, errors: ["Invalid session."], members: nil } unless session
 
-      member.role = role
-      member.permission = permission
-      member.last_seen_at = Time.current
-      member.save!
+      member = session.session_members.find_by(participant_id: participant_id)
+      return { success: false, errors: ["Session member not found."], members: nil } unless member
+
+      # Only update last_seen_at — never accept role/permission from client
+      member.update!(last_seen_at: Time.current)
 
       members_payload = session.session_members
+        .where('last_seen_at > ?', 60.seconds.ago)
         .order(last_seen_at: :desc)
         .limit(12)
         .map do |m|

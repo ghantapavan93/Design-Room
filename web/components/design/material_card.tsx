@@ -10,7 +10,7 @@ interface MaterialCardProps {
 export function MaterialCard({ preset, isSelected, onSelect }: MaterialCardProps) {
     return (
         <button
-            className="group relative flex flex-col text-left transition-all duration-200 overflow-hidden w-full rounded-xl"
+            className="group relative flex flex-col text-left transition-all duration-200 w-full rounded-xl"
             style={isSelected ? {
                 background: 'var(--bg-active)',
                 borderColor: 'var(--text-primary)',
@@ -32,7 +32,7 @@ export function MaterialCard({ preset, isSelected, onSelect }: MaterialCardProps
         >
             {/* Swatch Image */}
             <div
-                className="w-full aspect-square transition-transform duration-300 group-hover:scale-105"
+                className="w-full aspect-square transition-transform duration-300 group-hover:scale-105 rounded-t-xl overflow-hidden"
                 style={{
                     backgroundColor: preset.swatchHex,
                     backgroundImage: preset.thumbnailUrl ? `url(${preset.thumbnailUrl})` : 'none',
@@ -41,39 +41,39 @@ export function MaterialCard({ preset, isSelected, onSelect }: MaterialCardProps
             />
 
             {/* Quick Preview Hover Overlay */}
-            <div className="absolute top-0 left-0 right-0 aspect-square bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center p-2">
-                <span className="text-xs font-bold text-white tracking-widest uppercase drop-shadow-md">
+            <div className="absolute top-0 left-0 right-0 aspect-square bg-white/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center p-2">
+                <span className="text-xs font-bold tracking-widest uppercase drop-shadow-md" style={{ color: 'var(--text-primary)' }}>
                     {isSelected ? 'Applied' : 'Apply'}
                 </span>
             </div>
 
             {/* Info Card portion */}
-            <div className="p-3 flex flex-col gap-1 w-full bg-zinc-900 border-t border-white/10 z-10">
+            <div className="p-3 flex flex-col gap-1.5 w-full border-t border-black/5 z-10 transition-colors" style={{ background: 'var(--bg-elevated)' }}>
                 <div className="flex flex-row justify-between items-start gap-1">
                     <h4
-                        className="text-xs font-semibold truncate leading-tight"
+                        className="text-[11px] font-black truncate leading-tight uppercase tracking-tight"
                         style={{ color: 'var(--text-primary)' }}
                         title={preset.name}
                     >
                         {preset.name}
                     </h4>
-                    {preset.cost_band && (
-                        <span className="text-[10px] font-mono tracking-tighter shrink-0 px-1 py-0.5 rounded-sm" style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>
-                            {preset.cost_band}
+                    {preset.costBand && (
+                        <span className="text-[9px] font-black tracking-widest shrink-0 px-1.5 py-0.5 rounded-md uppercase" style={{ background: 'rgba(52,211,153,0.15)', color: '#10b981', border: '1px solid rgba(52,211,153,0.1)' }}>
+                            {preset.costBand}
                         </span>
                     )}
                 </div>
 
                 <div className="flex flex-row items-center justify-between">
                     <p
-                        className="text-[11px] truncate"
+                        className="text-[9px] font-bold truncate uppercase tracking-widest"
                         style={{ color: 'var(--text-muted)' }}
                         title={preset.brand}
                     >
                         {preset.brand}
                     </p>
                     {preset.sku && (
-                        <p className="text-[9px] font-mono tracking-wider opacity-50 uppercase">{preset.sku.split('-')[1] || preset.sku}</p>
+                        <p className="text-[8px] font-black tracking-[0.15em] opacity-30 uppercase">{preset.sku.split('-')[1] || preset.sku}</p>
                     )}
                 </div>
             </div>
