@@ -23,6 +23,20 @@ export const MOCK_MEASUREMENTS: Record<string, { value: number; unit: string; ba
     windows: { value: 12, unit: 'each', baseRate: 450 },
     door: { value: 1, unit: 'each', baseRate: 1200 },
     garage: { value: 1, unit: 'each', baseRate: 2500 },
+    
+    // Design 2 Elements
+    wall_left_cedar: { value: 800, unit: 'sqft', baseRate: 6.5 },
+    wall_center_white: { value: 1200, unit: 'sqft', baseRate: 4.5 },
+    wall_right_upper_white: { value: 400, unit: 'sqft', baseRate: 4.5 },
+    wall_right_dark_cladding: { value: 650, unit: 'sqft', baseRate: 5.5 },
+    roof_center_connector: { value: 400, unit: 'sqft', baseRate: 3.8 },
+    entry_canopy: { value: 120, unit: 'sqft', baseRate: 4.0 },
+    window_left_tall: { value: 2, unit: 'each', baseRate: 650 },
+    window_center_horizontal: { value: 1, unit: 'each', baseRate: 550 },
+    window_right_upper: { value: 3, unit: 'each', baseRate: 400 },
+    entry_glass: { value: 1, unit: 'each', baseRate: 850 },
+    front_door: { value: 1, unit: 'each', baseRate: 1500 },
+    garage_door: { value: 1, unit: 'each', baseRate: 2500 }
 };
 
 export const DEFAULT_METADATA: EstimateMetadata = {

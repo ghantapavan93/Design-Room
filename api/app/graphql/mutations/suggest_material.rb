@@ -2,14 +2,14 @@ module Mutations
   class SuggestMaterial < BaseMutation
     argument :design_id, ID, required: true
     argument :region, String, required: true
-    argument :material_id, ID, required: true
+    argument :material_id, ID, required: false
     argument :actor_name, String, required: true
     argument :actor_role, String, required: false
     argument :participant_id, String, required: true
     argument :client_txn_id, String, required: true
     argument :design_session_token, String, required: true
 
-    def resolve(design_id:, region:, material_id:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:)
+    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:)
       start_time = Time.current
       region = region.to_s.downcase.strip
       design = Design.find(design_id)

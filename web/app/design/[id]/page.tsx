@@ -15,6 +15,7 @@ import { ExportDialog } from '@/components/design/export_dialog';
 import { ShareDialog } from '@/components/design/share_dialog';
 import { WorkflowStrip } from '@/components/design/workflow_strip';
 import { ConflictBanner } from '@/components/design/conflict_banner';
+import { ProjectReadinessPanel, deriveReadiness, regionLabel, READINESS_META } from '@/components/design/project_readiness_panel';
 import { RegionCommentsDrawer, RegionComment } from '@/components/design/region_comments_drawer';
 import { ProjectChatDrawer, ProjectMessage } from '@/components/design/project_chat_drawer';
 import { DesignRegion } from '@/lib/regions';
@@ -30,8 +31,7 @@ import {
     SAVE_VERSION_MUTATION,
     RESTORE_VERSION_MUTATION,
     CREATE_LINK_MUTATION,
-    MARK_FINAL_MUTATION,
-    JOIN_SESSION_MUTATION,
+    MARK_FINAL_MUTATION, UNLOCK_DESIGN_MUTATION, JOIN_SESSION_MUTATION,
     HEARTBEAT_MUTATION,
     ADD_REGION_COMMENT_MUTATION,
     TOGGLE_REGION_LOCK_MUTATION,
@@ -107,7 +107,7 @@ export default function DesignEditorPage() {
     const [members, setMembers] = React.useState<SessionMember[]>([]);
 
     // UI State
-    const [selectedRegions, setSelectedRegions] = React.useState<string[]>(['walls']);
+    const [selectedRegions, setSelectedRegions] = React.useState<string[]>([]);
     const [chipPosition, setChipPosition] = React.useState<{ x: number, y: number } | null>(null);
     const [highlightedRegion, setHighlightedRegion] = React.useState<string | undefined>();
     const [isLedgerOpen, setIsLedgerOpen] = React.useState(false);
@@ -231,14 +231,25 @@ export default function DesignEditorPage() {
 
                 const events = designRes.design.recentEvents;
                 if (events && events.length > 0) {
+                    // Build a set of regions that have been approved or rejected —
+                    // these should NOT appear as pending even if a suggest_material event exists.
+                    const resolvedRegions = new Set<string>(
+                        events
+                            .filter((e: DesignEvent) => e.eventType === 'approve_suggestion' || e.eventType === 'reject_suggestion')
+                            .map((e: DesignEvent) => e.region)
+                    );
+
                     const suggestions = events
-                        .filter((e: DesignEvent) => e.eventType === 'suggest_material')
-                        .map((e: DesignEvent) => ({
-                            region: e.region,
-                            preset: map[e.toMaterialId!],
-                            actorName: e.actorName,
-                            eventId: e.id
-                        }))
+                        .filter((e: DesignEvent) => e.eventType === 'suggest_material' && !resolvedRegions.has(e.region))
+                        .map((e: DesignEvent) => {
+                            const presetId = String(e.toMaterialId || '');
+                            return {
+                                region: e.region,
+                                preset: map[presetId],
+                                actorName: e.actorName,
+                                eventId: e.id
+                            };
+                        })
                         .filter((s: any) => s.preset);
                     if (suggestions.length > 0) setPendingSuggestions(suggestions);
                 }
@@ -543,7 +554,8 @@ export default function DesignEditorPage() {
 
     const handleIncomingEvent = (ev: DesignEvent, newState: any, newVersion?: DesignVersion) => {
         if (ev.eventType === 'suggest_material') {
-            const preset = presets[ev.toMaterialId!];
+            const presetId = String(ev.toMaterialId || '');
+            const preset = presets[presetId];
             if (preset) {
                 setPendingSuggestions(prev => {
                     const filtered = prev.filter(s => s.eventId !== ev.id);
@@ -580,17 +592,37 @@ export default function DesignEditorPage() {
 
     // ----- Actions -----
     const refreshDesignData = async () => {
-        try { const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId }); 
-        setDesign(res.design); 
-        if (res.design.shareLinks) setShareLinks(res.design.shareLinks);
-        } catch { }
+        try {
+            const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId });
+            if (res.design) {
+                setDesign(res.design);
+                // Atomic update for share links shared across UI components
+                if (res.design.shareLinks) {
+                    setShareLinks(res.design.shareLinks);
+                }
+            }
+            return res.design;
+        } catch (err) {
+            console.error('[RefreshDesignData] Failed:', err);
+            return null;
+        }
     };
 
     const handleMaterialSelect = async (regions: string[], preset: MaterialPreset) => {
-        if (permission === 'viewer' || !permissionVerified) return;
+        console.log('[DEBUG] handleMaterialSelect Entry:', { regions, presetId: preset.id, permission, permissionVerified });
+        if (permission === 'viewer' || !permissionVerified) {
+            console.log('[DEBUG] handleMaterialSelect Bailed: viewer or not verified');
+            return;
+        }
 
         const newStateJson = { ...design?.state?.stateJson };
-        regions.forEach(r => newStateJson[r] = preset.id);
+        regions.forEach(r => {
+            if (preset.id === 'REMOVE') {
+                delete newStateJson[r];
+            } else {
+                newStateJson[r] = preset.id;
+            }
+        });
 
         if (permission === 'editor') {
             // Optimistic
@@ -609,7 +641,7 @@ export default function DesignEditorPage() {
                     const res = await api.graphqlRequest<any>(APPLY_MATERIAL_MUTATION, {
                         designId,
                         region: r,
-                        materialId: preset.id,
+                        materialId: preset.id === 'REMOVE' ? null : preset.id,
                         actorName: displayName,
                         actorRole: role,
                         participantId: participantIdRef.current,
@@ -663,20 +695,29 @@ export default function DesignEditorPage() {
                 await refreshDesignData(); 
             }
         } else if (permission === 'suggester') {
+            console.log('[DEBUG] handleMaterialSelect Suggester Branch Start');
             try {
                 await Promise.all(regions.map(async r => {
                     const txnId = generateIdempotencyKey();
+                    console.log('[DEBUG] Sending SUGGEST_MATERIAL_MUTATION for region:', r);
                     const res = await api.graphqlRequest<any>(SUGGEST_MATERIAL_MUTATION, {
-                        designId, region: r, materialId: preset.id, actorName: displayName, actorRole: role, participantId: participantIdRef.current, clientTxnId: txnId, designSessionToken: sessionToken
+                        designId, region: r, materialId: preset.id === 'REMOVE' ? null : preset.id, actorName: displayName, actorRole: role, participantId: participantIdRef.current, clientTxnId: txnId, designSessionToken: sessionToken
                     });
-                    if (res.suggestMaterial.success) {
+                    console.log('[DEBUG] SUGGEST_MATERIAL_MUTATION Response:', res);
+                    if (res?.suggestMaterial?.success) {
+                        console.log('[DEBUG] Suggestion Success - setting local state');
                         setPendingSuggestions(prev => [...prev, { region: r, preset, actorName: displayName, eventId: res.suggestMaterial.event.id }]);
                     } else {
-                        toast({ title: res.suggestMaterial.errors[0], variant: 'destructive' });
+                        console.log('[DEBUG] Suggestion Failure:', res?.suggestMaterial?.errors);
+                        toast({ title: res?.suggestMaterial?.errors?.[0] || 'Unknown error', variant: 'destructive' });
                     }
                 }));
+                console.log('[DEBUG] All suggestions processed - firing toast');
                 toast({ title: 'Suggestions sent to contractor', variant: 'success' });
-            } catch { toast({ title: 'Network error', variant: 'destructive' }); }
+            } catch (err) { 
+                console.error('[DEBUG] Suggestion Error:', err);
+                toast({ title: 'Network error', variant: 'destructive' }); 
+            }
         }
     };
 
@@ -718,6 +759,20 @@ export default function DesignEditorPage() {
                 toast({ title: res.markFinalVersion.errors[0], variant: 'destructive' });
             }
         } catch { toast({ title: 'Failed to mark final', variant: 'destructive' }); }
+    };
+
+    const handleUnlockDesign = async () => {
+        try {
+            const res = await api.graphqlRequest<any>(UNLOCK_DESIGN_MUTATION, {
+                designId: designId, actorName: displayName, clientTxnId: generateIdempotencyKey(), designSessionToken: sessionToken, participantId: participantIdRef.current
+            });
+            if (res.unlockDesign.success) {
+                toast({ title: 'Design Unlocked', variant: 'success' });
+                refreshDesignData();
+            } else {
+                toast({ title: res.unlockDesign.errors[0], variant: 'destructive' });
+            }
+        } catch { toast({ title: 'Failed to unlock', variant: 'destructive' }); }
     };
 
     const handleRevertEvent = async (eventId: string) => {
@@ -844,11 +899,34 @@ export default function DesignEditorPage() {
                 participantId: participantIdRef.current
             });
             if (res.createShareLink.success) {
-                const token = res.createShareLink.link.token;
+                const link = res.createShareLink.link;
                 const origin = typeof window !== 'undefined' ? window.location.origin : '';
-                setShareLinkUrl(`${origin}/design/${mode}/${token}`);
+                const fullUrl = `${origin}/design/${mode}/${link.token}`;
+
+                // 1. Show the generated URL in the success banner immediately
+                setShareLinkUrl(fullUrl);
+
+                // 2. Optimistically insert into the Active Links list RIGHT NOW
+                //    so it appears at the top without waiting for a full refresh
+                const optimisticLink = {
+                    id: link.id || `optimistic-${Date.now()}`,
+                    token: link.token,
+                    mode: link.mode || mode,
+                    permission: link.permission || (mode === 'live' ? targetPermission : 'viewer'),
+                    createdAt: new Date().toISOString(),
+                    revokedAt: null,
+                    expiresAt: null,
+                    lastAccessedAt: null,
+                    designId,
+                    design: design as any,
+                };
+                setShareLinks(prev => [optimisticLink, ...prev]);
+
+                // 3. Background refresh to get confirmed server state (non-blocking)
+                refreshDesignData();
             } else {
-                toast({ title: 'Failed to create link', variant: 'destructive' });
+                const errMsg = res.createShareLink.errors?.[0] || 'Failed to create link';
+                toast({ title: errMsg, variant: 'destructive' });
                 setShareLinkUrl(null);
             }
         } catch {
@@ -856,7 +934,6 @@ export default function DesignEditorPage() {
             setShareLinkUrl(null);
         } finally {
             setShareLinkLoading(false);
-            refreshDesignData();
         }
     };
 
@@ -936,6 +1013,22 @@ export default function DesignEditorPage() {
         }
     };
 
+    // ── Hooks that must run unconditionally (before any early return) ─────────
+    const currentEstimate = React.useMemo(
+        () => computeEstimate(design?.state?.stateJson ?? {}, presets, MOCK_MEASUREMENTS).total,
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [design?.state?.stateJson, presets]
+    );
+    const scopeChips = React.useMemo(
+        () => Object.entries(design?.state?.stateJson ?? {}).map(([region, matId]) => ({
+            region,
+            label: regionLabel(region),
+            preset: presets[matId] ?? null,
+        })).filter(c => c.preset !== null),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [design?.state?.stateJson, presets]
+    );
+
     if (loading || !design) {
         return (
             <div className="h-screen w-full flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
@@ -968,9 +1061,18 @@ export default function DesignEditorPage() {
         );
     }
 
-    let statusChip = 'Draft';
-    if (design.finalVersionId) statusChip = 'Finalized';
-    else if (design.versions && design.versions.length > 0) statusChip = 'In Review';
+    // ── Workflow / readiness derived state (hooks already called above) ────────
+    const readinessState = deriveReadiness(
+        design.state.stateJson ?? {},
+        design.versions ?? [],
+        pendingSuggestions,
+        design.finalVersionId ? String(design.finalVersionId) : null,
+        currentEstimate,
+        exportDone
+    );
+    const readinessMeta = READINESS_META[readinessState];
+    // Keep legacy string for components that still expect it
+    const statusChip = readinessMeta.label;
     const lastSavedText = design.state.lastSavedAt ? `Saved ${formatTimeAgo(design.state.lastSavedAt)}` : 'Unsaved';
 
     const isStep1 = selectedRegions.length > 0;
@@ -1010,12 +1112,12 @@ export default function DesignEditorPage() {
                     <span
                         className="pill text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-widest shadow-sm"
                         style={{
-                            background: statusChip === 'Finalized' ? 'rgba(34,197,94,0.12)' : statusChip === 'In Review' ? 'rgba(245,158,11,0.12)' : 'var(--bg-active)',
-                            color: statusChip === 'Finalized' ? '#4ade80' : statusChip === 'In Review' ? '#fbbf24' : 'var(--text-muted)',
-                            border: statusChip === 'Finalized' ? '1px solid rgba(34,197,94,0.2)' : statusChip === 'In Review' ? '1px solid rgba(245,158,11,0.2)' : '1px solid var(--border-subtle)'
+                            background: readinessMeta.bg,
+                            color: readinessMeta.color,
+                            border: `1px solid ${readinessMeta.border}`
                         }}
                     >
-                        {statusChip}
+                        {readinessMeta.label}
                     </span>
                     {/* Role badge — makes permission visible at a glance during demo */}
                     <span
@@ -1120,7 +1222,7 @@ export default function DesignEditorPage() {
                         : undefined}
                 />
 
-                <div className="flex-1 relative">
+                <div className="flex-1 relative bg-[#fcfcfc]">
                     <PreviewCanvas
                         baseImageUrl={design.baseMediaUrl || "/demo/coastal/base.jpg"}
                         masksUrlPrefix={design.masksUrlPrefix || "/demo/coastal"}
@@ -1131,6 +1233,7 @@ export default function DesignEditorPage() {
                         pendingSuggestion={pendingSuggestions[0] || undefined}
                         selectedRegions={selectedRegions}
                         lockedRegions={lockedRegions}
+                        suggesterMode={permission === 'suggester'}
                         commentCounts={Object.fromEntries(
                             [...new Set(regionComments.map(c => c.region))].map(r => [r, regionComments.filter(c => c.region === r).length])
                         )}
@@ -1149,71 +1252,180 @@ export default function DesignEditorPage() {
                     />
                     {selectedRegions.length > 0 && chipPosition && (
                         <div
-                            className="absolute z-30 flex flex-col items-center animate-fade-up pointer-events-auto"
-                            style={{ left: chipPosition.x, top: chipPosition.y - 70, transform: 'translateX(-50%)', position: 'absolute' }}
+                            className="absolute z-30 flex items-center animate-in fade-in slide-in-from-bottom-2 duration-300 ease-out pointer-events-auto"
+                            style={{ left: chipPosition.x, top: chipPosition.y - 60, transform: 'translateX(-50%)', position: 'absolute' }}
                         >
-                            <div
-                                className="rounded-2xl p-3 flex items-center gap-4 border backdrop-blur-2xl transition-all"
-                                style={{
-                                    background: 'var(--bg-elevated)',
-                                    borderColor: 'var(--border-default)',
-                                    boxShadow: '0 20px 60px rgba(0,0,0,0.15), 0 0 40px rgba(59,130,246,0.05)'
-                                }}
-                            >
-                                <span className="text-[15px] font-semibold whitespace-nowrap px-2 tracking-wide" style={{ color: 'var(--text-primary)' }}>
+                            <div className="rounded-xl p-1.5 flex items-center gap-2 border border-white/10 bg-[#0f0f12]/95 backdrop-blur-xl shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition-all duration-300">
+                                <span className="text-xs font-bold whitespace-nowrap px-3 tracking-widest uppercase text-white">
                                     {selectedRegions.length === 1 ? (() => {
                                         const r = selectedRegions[0];
                                         const el = design.elements?.find(e => e.id === r);
-                                        const label = el ? el.label : r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                                        return `${label} Selected`;
-                                    })() : `${selectedRegions.length} Regions Selected`}
+                                        return el ? el.label : r.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                                    })() : `${selectedRegions.length} Selected`}
                                 </span>
-                                <div className="w-px h-6" style={{ background: 'var(--border-subtle)' }} />
-                                {permission === 'editor' && (
-                                    <button
-                                        className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 border ${selectedRegions.every(r => lockedRegions.some(l => l.region === r)) ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-transparent hover:bg-neutral-100'}`}
-                                        style={!selectedRegions.every(r => lockedRegions.some(l => l.region === r)) ? { color: 'var(--text-primary)', borderColor: 'var(--border-default)' } : undefined}
-                                        onClick={async () => {
-                                            for (const r of selectedRegions) {
-                                                try {
-                                                    const res = await api.graphqlRequest<any>(TOGGLE_REGION_LOCK_MUTATION, {
-                                                        designId, region: r, designSessionToken: sessionToken, actorName: displayName, participantId: participantIdRef.current
-                                                    });
-                                                    if (!res.toggleRegionLock.success) {
-                                                        toast({ title: res.toggleRegionLock.errors[0], variant: 'destructive' });
+                                
+                                <div className="w-px h-4 bg-white/10" />
+
+                                {permission === 'editor' && (() => {
+                                    const isLocked = selectedRegions.every(r => lockedRegions.some(l => l.region === r));
+                                    return (
+                                        <button
+                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all duration-300 ease-out flex items-center gap-1.5 ${
+                                                isLocked 
+                                                    ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' 
+                                                    : 'bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                            onClick={async () => {
+                                                for (const r of selectedRegions) {
+                                                    try {
+                                                        const res = await api.graphqlRequest<any>(TOGGLE_REGION_LOCK_MUTATION, {
+                                                            designId, region: r, designSessionToken: sessionToken, actorName: displayName, participantId: participantIdRef.current
+                                                        });
+                                                        if (!res.toggleRegionLock.success) {
+                                                            toast({ title: res.toggleRegionLock.errors[0], variant: 'destructive' });
+                                                        }
+                                                    } catch {
+                                                        toast({ title: "Lock request failed", variant: "destructive" });
                                                     }
-                                                } catch {
-                                                    toast({ title: "Lock request failed", variant: "destructive" });
                                                 }
-                                            }
-                                            setChipPosition(null);
-                                            setSelectedRegions([]);
-                                        }}
-                                    >
-                                        {selectedRegions.every(r => lockedRegions.some(l => l.region === r)) ? '🔓 Unlock' : '🔒 Lock'}
-                                    </button>
-                                )}
+                                                setChipPosition(null);
+                                                setSelectedRegions([]);
+                                            }}
+                                        >
+                                            {isLocked ? (
+                                                <>
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                                                    Unlock
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                    Lock
+                                                </>
+                                            )}
+                                        </button>
+                                    );
+                                })()}
+
                                 <button
-                                    className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 border"
-                                    style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', borderColor: 'var(--border-default)' }}
-                                    onMouseOver={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                                    onMouseOut={e => e.currentTarget.style.background = 'var(--bg-base)'}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-all duration-300 ease-out"
+                                    title="Add Comment"
+                                    aria-label="Add Comment"
                                     onClick={() => {
                                         setCommentsRegion(selectedRegions[0] || null);
                                         setIsCommentsOpen(true);
                                     }}
                                 >
-                                    💬 Comment
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
                                 </button>
                             </div>
-                            <div
-                                className="w-5 h-5 border-r border-b rotate-45 -mt-2.5 backdrop-blur-2xl"
-                                style={{ background: 'var(--bg-elevated)', borderColor: 'var(--border-default)', boxShadow: '4px 4px 10px rgba(0,0,0,0.05)' }}
-                            />
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* ── Visual Scope Summary chip rail ─────────────────────────────── */}
+            {scopeChips.length > 0 && (
+                <div
+                    className="h-10 flex items-center gap-2 px-5 overflow-x-auto shrink-0"
+                    style={{ background: '#0a0a0d', borderTop: '1px solid rgba(255,255,255,0.04)', scrollbarWidth: 'none' }}
+                >
+                    <span className="text-[9px] font-black uppercase tracking-[0.12em] text-neutral-600 shrink-0">Applied</span>
+                    {scopeChips.slice(0, 6).map(({ region, label, preset }) => (
+                        <button
+                            key={region}
+                            title={`${label} — ${preset!.name}`}
+                            onClick={() => {
+                                // Replace selection cleanly — does not conflict with shift-multi-select
+                                // which only occurs on canvas click (onRegionClick). This is a direct jump.
+                                setSelectedRegions([region]);
+                                setChipPosition(null); // no chip popup from here
+                            }}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full shrink-0 transition-colors"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                color: '#e5e7eb',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                letterSpacing: '0.04em',
+                            }}
+                        >
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: preset!.swatchHex }} />
+                            {label}
+                        </button>
+                    ))}
+                    {scopeChips.length > 6 && (
+                        <span className="text-[9px] text-neutral-600 shrink-0 font-bold">+{scopeChips.length - 6} more</span>
+                    )}
+                </div>
+            )}
+
+            {/* Floating Pending Suggestion Banner — shown to editor when suggestion pending */}
+            {permission === 'editor' && pendingSuggestions.length > 0 && (() => {
+                const s = pendingSuggestions[0];
+                return (
+                    <div
+                        className="absolute bottom-16 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3.5 rounded-2xl shadow-2xl animate-in slide-in-from-bottom-4 duration-500"
+                        style={{
+                            background: 'rgba(15,15,20,0.92)',
+                            backdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(251,191,36,0.35)',
+                            boxShadow: '0 0 0 1px rgba(251,191,36,0.15), 0 20px 60px rgba(0,0,0,0.4)',
+                            minWidth: 360
+                        }}
+                    >
+                        <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_rgba(251,191,36,0.8)] shrink-0" />
+                        <div
+                            className="w-8 h-8 rounded-lg border border-white/10 shrink-0"
+                            style={{
+                                backgroundColor: s.preset.swatchHex,
+                                backgroundImage: s.preset.thumbnailUrl ? `url(${s.preset.thumbnailUrl})` : 'none',
+                                backgroundSize: 'cover'
+                            }}
+                        />
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-black text-white uppercase tracking-widest truncate">{s.actorName} suggested</p>
+                            <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider truncate">{s.preset.name} · {s.region}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                            <button
+                                onClick={() => handleRejectSuggestion(s.eventId)}
+                                className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-neutral-400 border border-white/10 hover:bg-white/5 transition-all active:scale-95"
+                            >
+                                Reject
+                            </button>
+                            <button
+                                onClick={() => handleApproveSuggestion(s.eventId)}
+                                className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg transition-all active:scale-95"
+                            >
+                                ✓ Approve
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => { setIsLedgerOpen(true); }}
+                            className="text-[9px] font-bold text-neutral-500 hover:text-neutral-300 uppercase tracking-wider shrink-0 pl-2 border-l border-white/10 transition-all"
+                        >
+                            View History
+                        </button>
+                    </div>
+                );
+            })()}
+
+            {/* Project Readiness Panel */}
+            <ProjectReadinessPanel
+                stateJson={design.state.stateJson ?? {}}
+                versions={design.versions ?? []}
+                pendingSuggestions={pendingSuggestions}
+                finalVersionId={design.finalVersionId ? String(design.finalVersionId) : null}
+                presetsMap={presets}
+                exportDone={exportDone}
+                onOpenTakeoff={() => setIsTakeoffOpen(true)}
+                onOpenExport={() => setIsExportOpen(true)}
+                isEditor={permission === 'editor'}
+            />
 
             {/* Bottom Bar */}
             <BottomBar
@@ -1226,6 +1438,7 @@ export default function DesignEditorPage() {
                 onUndo={handleUndo}
                 canUndo={permission === 'editor' && !!design.recentEvents?.find(e => e.eventType === 'apply_material')}
                 statusText={lastSavedText}
+                pendingSuggestionCount={permission === 'editor' ? pendingSuggestions.length : 0}
             />
 
             {/* Drawers */}
@@ -1243,6 +1456,7 @@ export default function DesignEditorPage() {
                 onApproveSuggestion={handleApproveSuggestion}
                 onRejectSuggestion={handleRejectSuggestion}
                 regionComments={regionComments}
+                elements={design.elements || []}
             />
 
             <OptionsDrawer
@@ -1256,6 +1470,7 @@ export default function DesignEditorPage() {
                 onCompare={setCompareOption}
                 onRestore={handleRestoreVersion}
                 onMarkFinal={handleMarkFinal}
+                onUnlockDesign={handleUnlockDesign}
                 isEditor={permission === 'editor'}
             />
 
@@ -1266,11 +1481,20 @@ export default function DesignEditorPage() {
                     presetsMap={presets}
                     baseImageUrl={design.baseMediaUrl || "/demo/coastal/base.jpg"}
                     masksUrlPrefix={design.masksUrlPrefix || "/demo/coastal"}
+                    elements={design.elements || []}
                     onClose={() => setCompareOption(null)}
                     onRestore={handleRestoreVersion}
                     onSaveCurrentAsOption={async (label) => {
                         await handleSaveVersion(label);
                         setCompareOption(null);
+                    }}
+                    onMarkFinal={async (versionId) => {
+                        await handleMarkFinal(versionId);
+                        setCompareOption(null);
+                    }}
+                    onSendForReview={() => {
+                        setCompareOption(null);
+                        setIsShareOpen(true);
                     }}
                     isEditor={permission === 'editor'}
                 />
@@ -1296,6 +1520,7 @@ export default function DesignEditorPage() {
                 statusChip={statusChip}
                 lockedRegions={lockedRegions.map(l => l.region)}
                 regionComments={regionComments}
+                elements={design.elements || []}
                 onExport={() => { setExportDone(true); handleRecordExport('proposal'); }}
             />
 
@@ -1310,6 +1535,7 @@ export default function DesignEditorPage() {
                 statusChip={statusChip}
                 lockedRegions={lockedRegions.map(l => l.region)}
                 regionComments={regionComments}
+                elements={design.elements || []}
             />
 
             <ConflictBanner

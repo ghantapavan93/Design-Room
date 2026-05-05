@@ -14,6 +14,7 @@ module Types
     field :create_share_link, mutation: Mutations::CreateShareLink
     field :heartbeat, mutation: Mutations::Heartbeat
     field :mark_final_version, mutation: Mutations::MarkFinalVersion
+    field :unlock_design, mutation: Mutations::UnlockDesign
     field :join_design_session, mutation: Mutations::JoinDesignSession
     field :resolve_region_comment, mutation: Mutations::ResolveRegionComment
     field :revoke_share_link, mutation: Mutations::RevokeShareLink

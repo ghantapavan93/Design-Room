@@ -14,19 +14,33 @@ interface LineItem {
 
 function buildLineItems(
     currentState: Record<string, string>,
-    presetsMap: Record<string, MaterialPreset>
+    presetsMap: Record<string, MaterialPreset>,
+    elements: any[] = []
 ): LineItem[] {
-    const res = computeEstimate(currentState, presetsMap, MOCK_MEASUREMENTS);
-    return res.items.map(i => ({
-        region: i.region,
-        label: i.region.charAt(0).toUpperCase() + i.region.slice(1),
-        materialName: presetsMap[i.presetId]?.name || '',
-        brand: presetsMap[i.presetId]?.brand || '',
-        costBand: presetsMap[i.presetId]?.costBand || '$',
-        swatchHex: presetsMap[i.presetId]?.swatchHex || '#000',
-        quantity: `${i.qty.toLocaleString()} ${i.unit}`,
-        estimatedCost: i.cost,
-    }));
+    const mappedState: Record<string, string> = {};
+    const originalKeys: Record<string, string> = {};
+    for (const [k, v] of Object.entries(currentState)) {
+        const el = elements.find(e => String(e.id) === String(k));
+        const mKey = el ? el.maskUrl.replace('.png', '') : k;
+        mappedState[mKey] = v;
+        originalKeys[mKey] = k;
+    }
+
+    const res = computeEstimate(mappedState, presetsMap, MOCK_MEASUREMENTS);
+    return res.items.map(i => {
+        const originalId = originalKeys[i.region] || i.region;
+        const el = elements.find(e => String(e.id) === String(originalId));
+        return {
+            region: originalId,
+            label: el ? el.label : i.region.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            materialName: presetsMap[i.presetId]?.name || '',
+            brand: presetsMap[i.presetId]?.brand || '',
+            costBand: presetsMap[i.presetId]?.costBand || '$',
+            swatchHex: presetsMap[i.presetId]?.swatchHex || '#000',
+            quantity: `${i.qty.toLocaleString()} ${i.unit}`,
+            estimatedCost: i.cost,
+        };
+    });
 }
 
 export function generateProposalHTML({
@@ -36,7 +50,8 @@ export function generateProposalHTML({
     versions,
     statusChip,
     lockedRegions = [],
-    regionComments = []
+    regionComments = [],
+    elements = []
 }: {
     designTitle: string;
     currentState: Record<string, string>;
@@ -45,8 +60,9 @@ export function generateProposalHTML({
     statusChip: string;
     lockedRegions?: string[];
     regionComments?: { region: string; body: string; authorName: string }[];
+    elements?: any[];
 }) {
-    const lineItems = buildLineItems(currentState, presetsMap);
+    const lineItems = buildLineItems(currentState, presetsMap, elements || []);
     const totalEstimate = lineItems.reduce((s, i) => s + i.estimatedCost, 0);
     const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -81,8 +97,15 @@ export function generateProposalHTML({
     let optionsSection = '';
     if (versions.length > 0) {
         const optionRows = versions.map(v => {
-            const est = computeEstimate((v.snapshotStateJson || {}) as Record<string, string>, presetsMap, MOCK_MEASUREMENTS).total;
-            const materialCount = Object.keys(v.snapshotStateJson || {}).length;
+            const vState = (v.snapshotStateJson || {}) as Record<string, string>;
+            const mappedVState: Record<string, string> = {};
+            for (const [k, val] of Object.entries(vState)) {
+                const el = (elements || []).find((e: any) => String(e.id) === String(k));
+                const mKey = el ? el.maskUrl.replace('.png', '') : k;
+                mappedVState[mKey] = val;
+            }
+            const est = computeEstimate(mappedVState, presetsMap, MOCK_MEASUREMENTS).total;
+            const materialCount = Object.keys(vState).length;
             return `
                 <tr>
                     <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:13px;color:#111;">${v.label}</td>
@@ -116,21 +139,27 @@ export function generateProposalHTML({
     let decisionSection = '';
     if (lockedRegions.length > 0 || regionComments.length > 0) {
         const lockedRows = lockedRegions.map(region => {
+            const el = (elements || []).find((e: any) => String(e.id) === String(region));
+            const regionLabel = el ? el.label : region.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             return `
                 <tr>
-                    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:13px;color:#111;text-transform:capitalize;">${region}</td>
+                    <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:13px;color:#111;text-transform:capitalize;">${regionLabel}</td>
                     <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:right;">Finalized</td>
                 </tr>
             `;
         }).join('');
 
-        const commentList = regionComments.map(c => `
+        const commentList = regionComments.map(c => {
+            const el = (elements || []).find((e: any) => String(e.id) === String(c.region));
+            const regionLabel = el ? el.label : c.region.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            return `
             <div style="margin-bottom:12px;padding:12px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
-                <div style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:4px;">${c.region}</div>
+                <div style="font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:4px;">${regionLabel}</div>
                 <div style="font-size:13px;color:#111;">"${c.body}"</div>
                 <div style="font-size:11px;color:#6b7280;margin-top:6px;">— ${c.authorName}</div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         decisionSection = `
             <div style="margin-top:32px;page-break-inside:avoid;">

@@ -11,6 +11,7 @@ interface BottomBarProps {
     onUndo: () => void;
     canUndo: boolean;
     statusText: string;
+    pendingSuggestionCount?: number;
 }
 
 export function BottomBar({
@@ -22,38 +23,20 @@ export function BottomBar({
     onShare,
     onUndo,
     canUndo,
-    statusText
+    statusText,
+    pendingSuggestionCount = 0
 }: BottomBarProps) {
     return (
         <div
-            className="h-20 px-8 pb-2 pt-1 flex items-center justify-between shrink-0 z-20 relative transition-colors"
+            className="h-20 pl-[64px] pr-8 pb-2 pt-1 flex items-center justify-between shrink-0 z-20 relative transition-colors"
             style={{
                 background: 'var(--bg-elevated)',
                 borderTop: '1px solid var(--border-subtle)',
                 boxShadow: '0 -4px 20px -5px rgba(0,0,0,0.05)'
             }}
         >
-            {/* Left: undo + status */}
+            {/* Left: status */}
             <div className="flex items-center gap-3">
-                <button
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    title="Undo last change"
-                    className="p-2 rounded-lg transition-all"
-                    style={{
-                        color: canUndo ? 'var(--text-secondary)' : 'var(--text-muted)',
-                        background: 'transparent',
-                        opacity: canUndo ? 1 : 0.35,
-                    }}
-                    onMouseOver={e => canUndo && (e.currentTarget.style.background = 'var(--bg-hover)')}
-                    onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                    </svg>
-                </button>
-
-                <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
 
                 <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--success)' }} />
@@ -61,20 +44,47 @@ export function BottomBar({
                 </div>
             </div>
 
-            {/* Right: History / Versions / Share */}
+            {/* Right: Undo / History / Versions / Share */}
             <div className="flex items-center gap-2">
                 <button
-                    onClick={onOpenLedger}
+                    onClick={onUndo}
+                    disabled={!canUndo}
+                    title="Undo last change"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-[10px] text-xs font-semibold transition-all"
                     style={{
-                        color: 'var(--text-primary)',
+                        color: canUndo ? 'var(--text-primary)' : 'var(--text-muted)',
                         background: 'var(--bg-base)',
+                        opacity: canUndo ? 1 : 0.5,
                         border: '1px solid var(--border-default)'
                     }}
-                    onMouseOver={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--border-focus)'; }}
-                    onMouseOut={e => { e.currentTarget.style.background = 'var(--bg-base)'; e.currentTarget.style.borderColor = 'var(--border-default)'; }}
+                    onMouseOver={e => { if (canUndo) { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.borderColor = 'var(--border-focus)'; } }}
+                    onMouseOut={e => { if (canUndo) { e.currentTarget.style.background = 'var(--bg-base)'; e.currentTarget.style.borderColor = 'var(--border-default)'; } }}
                 >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={2}>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    Undo
+                </button>
+
+                <div className="w-px h-4 mx-1" style={{ background: 'var(--border-subtle)' }} />
+
+                <button
+                    onClick={onOpenLedger}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-[10px] text-xs font-semibold transition-all relative"
+                    style={{
+                        color: pendingSuggestionCount > 0 ? '#fbbf24' : 'var(--text-primary)',
+                        background: pendingSuggestionCount > 0 ? 'rgba(251,191,36,0.08)' : 'var(--bg-base)',
+                        border: pendingSuggestionCount > 0 ? '1px solid rgba(251,191,36,0.3)' : '1px solid var(--border-default)'
+                    }}
+                    onMouseOver={e => { e.currentTarget.style.background = pendingSuggestionCount > 0 ? 'rgba(251,191,36,0.12)' : 'var(--bg-hover)'; }}
+                    onMouseOut={e => { e.currentTarget.style.background = pendingSuggestionCount > 0 ? 'rgba(251,191,36,0.08)' : 'var(--bg-base)'; }}
+                >
+                    {pendingSuggestionCount > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-[9px] font-black text-black flex items-center justify-center shadow-sm animate-pulse">
+                            {pendingSuggestionCount}
+                        </span>
+                    )}
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     History

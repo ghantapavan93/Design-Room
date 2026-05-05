@@ -72,21 +72,21 @@ export function ProjectChatDrawer({
                                     <div
                                         className="max-w-[85%] rounded-2xl px-4 py-3 shadow-sm transition-all group/msg"
                                         style={{
-                                            background: isMe ? 'rgba(59,130,246,0.1)' : 'var(--bg-elevated)',
-                                            border: `1px solid ${isMe ? 'rgba(59,130,246,0.2)' : 'var(--border-default)'}`
+                                            background: isMe ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+                                            border: `1px solid ${isMe ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.1)'}`
                                         }}
                                     >
                                         <div className="flex items-center gap-2 mb-1.5">
-                                            <span className="text-[12px] font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>{msg.authorName}</span>
+                                            <span className="text-[12px] font-bold tracking-tight text-white">{msg.authorName}</span>
                                             <span
                                                 className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md"
-                                                style={{ background: roleColor + '15', color: roleColor, border: `1px solid ${roleColor}25` }}
+                                                style={{ background: roleColor + '20', color: roleColor, border: `1px solid ${roleColor}40` }}
                                             >
                                                 {msg.authorRole}
                                             </span>
-                                            <span className="text-[10px] ml-auto tabular-nums opacity-60 group-hover/msg:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>{timeStr}</span>
+                                            <span className="text-[10px] ml-auto tabular-nums opacity-40 group-hover/msg:opacity-80 transition-opacity text-white">{timeStr}</span>
                                         </div>
-                                        <p className="text-[14px] leading-[1.6] font-medium tracking-tight whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{msg.body}</p>
+                                        <p className="text-[14px] leading-[1.6] font-medium tracking-tight whitespace-pre-wrap text-white/90">{msg.body}</p>
                                     </div>
                                 </div>
                             );
@@ -115,19 +115,25 @@ export function ProjectChatDrawer({
                             onChange={e => setDraft(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
                             placeholder={`Message the room as ${currentUserName}\u2026`}
-                            className="flex-1 px-4 py-3 text-sm font-medium rounded-xl border focus:outline-none transition-all placeholder:opacity-50"
+                            className="flex-1 px-4 py-3 text-sm font-medium rounded-xl border focus:outline-none transition-all placeholder:text-white/30"
                             style={{
-                                borderColor: 'var(--border-default)',
-                                background: 'transparent',
-                                color: 'var(--text-primary)'
+                                borderColor: 'rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.05)',
+                                color: '#ffffff'
                             }}
-                            onFocus={e => e.currentTarget.style.borderColor = '#3b82f6'}
-                            onBlur={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                            onFocus={e => {
+                                e.currentTarget.style.borderColor = '#3b82f6';
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                            }}
+                            onBlur={e => {
+                                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                            }}
                         />
                         <button
                             onClick={handleSend}
                             disabled={!draft.trim()}
-                            className="flex-shrink-0 px-5 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 hover:scale-105 active:scale-95 shadow-md flex items-center justify-center"
+                            className="flex-shrink-0 px-5 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-20 hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center"
                             style={{ background: '#3b82f6' }}
                         >
                             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

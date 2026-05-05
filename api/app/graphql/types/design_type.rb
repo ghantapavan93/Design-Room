@@ -34,6 +34,11 @@ module Types
       object.design_versions.order(created_at: :desc)
     end
 
+    def share_links
+      # Server-side filter: only active (not revoked, not expired), newest on top
+      object.share_links.active.order(created_at: :desc)
+    end
+
     def recent_events(limit:, after_id: nil)
       scope = object.design_events.order(id: :desc)
       scope = scope.where('id > ?', after_id) if after_id

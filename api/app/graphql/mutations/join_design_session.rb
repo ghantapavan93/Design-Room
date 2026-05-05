@@ -41,16 +41,10 @@ module Mutations
         effective_role = member.role
       else
         puts "JOIN NEW VISITOR: no share token"
-        # Allow the first visitor without a token to become the contractor
-        if session.session_members.where(role: 'contractor').empty?
-          puts "JOIN GRANTED: assigning contractor role as first visitor"
-          effective_permission = 'editor'
-          effective_role = 'contractor'
-        else
-          puts "JOIN GRANTED AS GUEST: contractor already exists, fallback to active homeowner/suggester for local testing"
-          effective_permission = 'suggester'
-          effective_role = 'homeowner'
-        end
+        # In demo mode, anyone accessing the base URL without a token is assumed to be the Contractor/Editor.
+        # Homeowners MUST use a share link.
+        effective_permission = 'editor'
+        effective_role = 'contractor'
       end
 
       # Update or initialize member

@@ -6,6 +6,6 @@ module DesignRegions
   DESIGN_REGIONS = %w[walls roof trim windows].freeze
 
   included do
-    validates :region, inclusion: { in: DESIGN_REGIONS, message: "%{value} is not a valid region" }, allow_nil: true
+    validates :region, presence: true, allow_nil: true
   end
 end

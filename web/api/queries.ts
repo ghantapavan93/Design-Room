@@ -99,7 +99,7 @@ export const CREATE_DESIGN_MUTATION = `
 `;
 
 export const APPLY_MATERIAL_MUTATION = `
-  mutation ApplyMaterial($designId: ID!, $region: String!, $materialId: ID!, $actorName: String!, $actorRole: String, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!, $baseVersion: String) {
+  mutation ApplyMaterial($designId: ID!, $region: String!, $materialId: ID, $actorName: String!, $actorRole: String, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!, $baseVersion: String) {
     applyMaterial(input: { designId: $designId, region: $region, materialId: $materialId, actorName: $actorName, actorRole: $actorRole, participantId: $participantId, clientTxnId: $clientTxnId, designSessionToken: $designSessionToken, baseVersion: $baseVersion }) {
       success
       errors
@@ -110,7 +110,7 @@ export const APPLY_MATERIAL_MUTATION = `
 `;
 
 export const SUGGEST_MATERIAL_MUTATION = `
-  mutation SuggestMaterial($designId: ID!, $region: String!, $materialId: ID!, $actorName: String!, $actorRole: String, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!) {
+  mutation SuggestMaterial($designId: ID!, $region: String!, $materialId: ID, $actorName: String!, $actorRole: String, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!) {
     suggestMaterial(input: { designId: $designId, region: $region, materialId: $materialId, actorName: $actorName, actorRole: $actorRole, participantId: $participantId, clientTxnId: $clientTxnId, designSessionToken: $designSessionToken }) {
       success
       errors
@@ -167,7 +167,7 @@ export const CREATE_LINK_MUTATION = `
     createShareLink(input: { designId: $designId, mode: $mode, permission: $permission, designSessionToken: $designSessionToken, participantId: $participantId }) {
       success
       errors
-      link { token mode permission }
+      link { id token mode permission createdAt }
     }
   }
 `;
@@ -185,6 +185,15 @@ export const REVERT_EVENT_MUTATION = `
 export const MARK_FINAL_MUTATION = `
   mutation MarkFinalVersion($versionId: ID!, $actorName: String!, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!) {
     markFinalVersion(input: { versionId: $versionId, actorName: $actorName, participantId: $participantId, clientTxnId: $clientTxnId, designSessionToken: $designSessionToken }) {
+      success
+      errors
+    }
+  }
+`;
+
+export const UNLOCK_DESIGN_MUTATION = `
+  mutation UnlockDesign($designId: ID!, $actorName: String!, $participantId: String!, $clientTxnId: String!, $designSessionToken: String!) {
+    unlockDesign(input: { designId: $designId, actorName: $actorName, participantId: $participantId, clientTxnId: $clientTxnId, designSessionToken: $designSessionToken }) {
       success
       errors
     }

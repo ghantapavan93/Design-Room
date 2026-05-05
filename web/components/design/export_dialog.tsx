@@ -13,6 +13,7 @@ interface ExportDialogProps {
     statusChip: string;
     lockedRegions?: string[];
     regionComments?: any[];
+    elements?: any[];
 }
 
 export function ExportDialog({
@@ -25,7 +26,8 @@ export function ExportDialog({
     versions,
     statusChip,
     lockedRegions = [],
-    regionComments = []
+    regionComments = [],
+    elements = []
 }: ExportDialogProps) {
     const [exportType, setExportType] = React.useState<'proposal' | 'summary'>('proposal');
 
@@ -41,7 +43,8 @@ export function ExportDialog({
             versions,
             statusChip,
             lockedRegions,
-            regionComments
+            regionComments,
+            elements
         });
         
         onOpenChange(false);

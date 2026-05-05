@@ -40,16 +40,24 @@ interface PreviewCanvasProps {
 
     // Passivity
     passive?: boolean;
+
+    // Suggester mode: Before/After compares suggestion vs contractor state (not vs raw photo)
+    suggesterMode?: boolean;
 }
 
 // Approximate center positions for region overlays (percentage of canvas)
 const REGION_OVERLAY_POSITIONS: Record<string, { x: number; y: number }> = {
-    roof: { x: 50, y: 22 },
-    walls: { x: 38, y: 55 },
-    windows: { x: 55, y: 48 },
-    door: { x: 42, y: 70 },
-    trim: { x: 25, y: 60 },
-    garage: { x: 72, y: 60 },
+    // Bulk region fallbacks
+    roof: { x: 50, y: 18 },
+    walls: { x: 38, y: 52 },
+    windows: { x: 42, y: 42 },
+    door: { x: 49, y: 68 },
+    trim: { x: 22, y: 50 },
+    garage: { x: 74, y: 62 },
+    // Granular element group keys
+    wall: { x: 38, y: 52 },
+    window: { x: 42, y: 42 },
+    // Named element labels mapped by group_key (used via baseGroup lookup)
 };
 
 export function PreviewCanvas({
@@ -66,6 +74,7 @@ export function PreviewCanvas({
     lockedRegions = [],
     commentCounts = {},
     passive = false,
+    suggesterMode = false,
 }: PreviewCanvasProps) {
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
     const containerRef = React.useRef<HTMLDivElement>(null);
@@ -95,14 +104,52 @@ export function PreviewCanvas({
 
     // Hit-testing debug state
     const [debugInfo, setDebugInfo] = React.useState<{
-        active: boolean;
-        px: number; py: number; // Pointer X/Y (relative to container)
-        mx: number; my: number; // Mapped X/Y (relative to mask)
-        alpha: number;
-        hitId: string | null;
         visible: boolean;
-    }>({ active: false, px: 0, py: 0, mx: 0, my: 0, alpha: 0, hitId: null, visible: false });
+        baseImageLoaded: boolean;
+        baseImageFailed: boolean;
+        maskFileLoaded: string | null;
+        maskFileFailed: string | null;
+        maskWidth: number;
+        maskHeight: number;
+        alphaCacheReady: boolean;
+        hoveredId: string | null;
+        selectedId: string | null;
+        selectionSource: string | null;
+        materialSource: string | null;
+        fallbackTriggered: boolean;
+        px: number; py: number; // Pointer X/Y
+    }>({
+        visible: false, baseImageLoaded: false, baseImageFailed: false,
+        maskFileLoaded: null, maskFileFailed: null, maskWidth: 0, maskHeight: 0,
+        alphaCacheReady: false, hoveredId: null, selectedId: null,
+        selectionSource: null, materialSource: null, fallbackTriggered: false,
+        px: 0, py: 0
+    });
 
+    // Alpha cache for O(1) hit testing
+    const alphaCacheRef = React.useRef<Record<string, Uint8ClampedArray>>({});
+
+    // Reusable hit-test logic
+    const hitTestCache = (x: number, y: number, baseWidth: number) => {
+        const ix = Math.floor(x);
+        const iy = Math.floor(y);
+        const idx = iy * baseWidth + ix;
+
+        // 1. Element First Selection
+        for (const e of elements) {
+            const key = `elem_${e.id}`;
+            const alpha = alphaCacheRef.current[key];
+            if (alpha && alpha[idx] > 0) return { id: e.id, source: 'element', maskKey: key };
+        }
+        
+        // 2. Group Fallback
+        for (const r of DESIGN_REGIONS) {
+            const key = `mask_${r}`;
+            const alpha = alphaCacheRef.current[key];
+            if (alpha && alpha[idx] > 0) return { id: r, source: 'group', maskKey: key };
+        }
+        return null;
+    };
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
     // Pulse animation for outlines
@@ -128,32 +175,92 @@ export function PreviewCanvas({
 
     React.useEffect(() => {
         const requiredImages = [
-            { key: 'photo', url: safeUrl(baseImageUrl) + '?v=4' },
-            { key: 'schematic', url: safeUrl(`${masksUrlPrefix}/base.jpg`) + '?v=4' },
-            ...DESIGN_REGIONS.map(r => ({ key: `mask_${r}`, url: safeUrl(`${masksUrlPrefix}/mask_${r}.png`) + '?v=4' })),
-            ...elements.map(e => ({ key: `elem_${e.id}`, url: safeUrl(e.maskUrl.startsWith('/') || e.maskUrl.startsWith('http') ? e.maskUrl : `${masksUrlPrefix}/${e.maskUrl}`) + '?v=4' }))
+            { key: 'photo', url: safeUrl(baseImageUrl) + '?v=6' },
+            { key: 'schematic', url: safeUrl(`${masksUrlPrefix}/base.jpg`) + '?v=6' },
+            ...DESIGN_REGIONS.map(r => ({ key: `mask_${r}`, url: safeUrl(`${masksUrlPrefix}/mask_${r}.png`) + '?v=6' })),
+            ...elements.map(e => ({ key: `elem_${e.id}`, url: safeUrl(e.maskUrl.startsWith('/') || e.maskUrl.startsWith('http') ? e.maskUrl : `${masksUrlPrefix}/${e.maskUrl}`) + '?v=6' }))
         ];
 
         let loadedCount = 0;
         const total = requiredImages.length;
         if (total === 0) { setImagesLoaded(true); return; }
 
+        const newImages: Record<string, HTMLImageElement> = {};
+
         requiredImages.forEach(req => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.src = req.url;
             img.onload = () => {
+                newImages[req.key] = img;
                 setImages(prev => ({ ...prev, [req.key]: img }));
                 loadedCount++;
-                if (req.key === 'photo' || req.key === 'schematic') setBaseReady(true);
-                if (loadedCount === total) setImagesLoaded(true);
+                if (req.key === 'photo' || req.key === 'schematic') {
+                    setBaseReady(true);
+                    setDebugInfo(p => ({ ...p, baseImageLoaded: true }));
+                }
+                if (loadedCount === total) {
+                    setImagesLoaded(true);
+                    buildAlphaCache(newImages);
+                }
             };
             img.onerror = () => {
                 console.error("Failed to load image:", req.url);
                 loadedCount++;
-                if (loadedCount === total) setImagesLoaded(true);
+                if (req.key === 'photo') {
+                    setDebugInfo(p => ({ ...p, baseImageFailed: true }));
+                } else {
+                    setDebugInfo(p => ({ ...p, maskFileFailed: req.key }));
+                }
+                if (loadedCount === total) {
+                    setImagesLoaded(true);
+                    buildAlphaCache(newImages);
+                }
             };
         });
+
+        function buildAlphaCache(loadedImages: Record<string, HTMLImageElement>) {
+            const baseImg = loadedImages['photo'] || loadedImages['schematic'];
+            if (!baseImg || !baseImg.naturalWidth) return;
+
+            const w = baseImg.naturalWidth;
+            const h = baseImg.naturalHeight;
+            
+            setDebugInfo(p => ({ ...p, maskWidth: w, maskHeight: h }));
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+            if (!tempCtx) return;
+
+            const newCache: Record<string, Uint8ClampedArray> = {};
+
+            Object.keys(loadedImages).forEach(key => {
+                if (key === 'photo' || key === 'schematic') return;
+                const img = loadedImages[key];
+                if (!img || !img.naturalWidth) return;
+                
+                // Asset Contract Check
+                if (img.naturalWidth !== w || img.naturalHeight !== h) {
+                    console.warn(`[Design 2 Asset Contract] Mask ${key} dimensions (${img.naturalWidth}x${img.naturalHeight}) do not match base image (${w}x${h})!`);
+                }
+                
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.drawImage(img, 0, 0, w, h);
+                const imgData = tempCtx.getImageData(0, 0, w, h);
+                
+                // Cache ONLY alpha channel (1 byte per pixel)
+                const alphaOnly = new Uint8ClampedArray(w * h);
+                for(let i=0; i<w*h; i++) {
+                    alphaOnly[i] = imgData.data[i*4 + 3];
+                }
+                newCache[key] = alphaOnly;
+            });
+
+            alphaCacheRef.current = newCache;
+            setDebugInfo(p => ({ ...p, alphaCacheReady: true }));
+        }
     }, [masksUrlPrefix, baseImageUrl, elements]);
 
     React.useEffect(() => {
@@ -194,7 +301,61 @@ export function PreviewCanvas({
 
         ctx.filter = 'none'; // Reset filter for subsequent draws
 
-        // Apply clip for comparison slider
+        // ── SUGGESTER MODE: draw contractor's state on right side of slider (Before) ──
+        // When a homeowner has a pending suggestion and the slider is active,
+        // the right side shows the contractor's approved materials (not raw photo).
+        if (suggesterMode && pendingSuggestion && splitPos < 1) {
+            // Right side (Before = contractor state without suggestion)
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(canvas.width * splitPos, 0, canvas.width, canvas.height);
+            ctx.clip();
+
+            const elementCategories = new Set(elements.map(e => e.groupKey || e.id.split('_')[0]));
+            const renderTargetsBefore = [
+                ...DESIGN_REGIONS.filter(r => !elementCategories.has(r)).map(r => ({ id: r, key: `mask_${r}`, isElement: false })),
+                ...elements.map(e => ({ id: e.id, key: `elem_${e.id}`, isElement: true, groupKey: e.groupKey }))
+            ];
+
+            renderTargetsBefore.forEach(target => {
+                const maskImg = images[target.key];
+                if (!maskImg || !maskImg.naturalWidth) return;
+
+                // Use contractor's state (selectedMaterials) — NO pendingSuggestion override
+                let matId = selectedMaterials[target.id];
+                if (!matId && (target as any).isElement && (target as any).groupKey) matId = selectedMaterials[(target as any).groupKey];
+                if (!matId) { const b = target.id.split('_')[0]; if (b === 'window') matId = selectedMaterials['windows']; }
+
+                if (matId && presetsMap[matId]) {
+                    const hex = presetsMap[matId].swatchHex;
+                    const off = document.createElement('canvas');
+                    off.width = canvas.width; off.height = canvas.height;
+                    const offCtx = off.getContext('2d')!;
+                    offCtx.fillStyle = hex;
+                    offCtx.fillRect(0, 0, off.width, off.height);
+                    offCtx.globalCompositeOperation = 'destination-in';
+                    offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                    ctx.save();
+                    ctx.globalAlpha = 0.65;
+                    ctx.drawImage(off, 0, 0);
+                    if (baseImg) {
+                        const tex = document.createElement('canvas');
+                        tex.width = canvas.width; tex.height = canvas.height;
+                        const texCtx = tex.getContext('2d')!;
+                        texCtx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+                        texCtx.globalCompositeOperation = 'destination-in';
+                        texCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                        ctx.globalCompositeOperation = 'multiply';
+                        ctx.globalAlpha = 0.5;
+                        ctx.drawImage(tex, 0, 0);
+                    }
+                    ctx.restore();
+                }
+            });
+            ctx.restore();
+        }
+
+        // Apply clip for comparison slider — left side = After (with suggestion)
         ctx.save();
         ctx.beginPath();
         // The edited portion is drawn on the LEFT side of the split, original on RIGHT
@@ -278,7 +439,12 @@ export function PreviewCanvas({
             const maskImg = images[target.key];
             if (!maskImg || !maskImg.naturalWidth) return;
 
-            const isSelected = selectedRegions.includes(target.id);
+            const tAny = target as any;
+            const isSelected = selectedRegions.includes(target.id) ||
+                (tAny.groupKey && selectedRegions.includes(tAny.groupKey)) ||
+                (target.id.startsWith('window_') && selectedRegions.includes('windows')) ||
+                (target.id === 'windows' && selectedRegions.includes('window'));
+
             const isHighlighted = highlightedRegion === target.id;
 
             // 1. Solid Blue Pulsed Outline
@@ -349,7 +515,7 @@ export function PreviewCanvas({
         });
 
         ctx.restore(); // Restore from clipping path
-    }, [viewMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, splitPos, selectedRegions, outlinePulse, elements]);
+    }, [viewMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, splitPos, selectedRegions, outlinePulse, elements, suggesterMode]);
 
     // Video frame loop
     React.useEffect(() => {
@@ -435,72 +601,27 @@ export function PreviewCanvas({
             return;
         }
 
-        const { x, y, imgWidth, imgHeight } = coords;
+        const { x, y } = coords;
 
-        // Pixel-perfect hit detection
-        const hitCtx = hitCtxRef.current;
-        if (!hitCtx) return;
-        // hitCtx.canvas.width = 1; // Already set in useEffect
-        // hitCtx.canvas.height = 1; // Already set in useEffect
+        // O(1) Cache Lookup
+        const hit = hitTestCache(x, y, baseImg.naturalWidth);
+        const hitRegion = hit ? hit.id : null;
 
-        let hitRegion: string | null = null;
-
-        // Check explicit elements first (sorted by their `sortOrder` or just default order)
-        const checkTargets = [
-            ...elements.map(e => ({ id: e.id, key: `elem_${e.id}` })),
-            ...DESIGN_REGIONS.map(r => ({ id: r, key: `mask_${r}` }))
-        ];
-
-        for (const target of checkTargets) {
-            const maskImg = images[target.key];
-            if (maskImg && maskImg.naturalWidth) {
-                hitCtx.clearRect(0, 0, 1, 1);
-
-                // Scale hit mapping to natural image dimensions using actual target dimensions
-                const mw = maskImg.naturalWidth;
-                const mh = maskImg.naturalHeight;
-
-                const mx = (x / baseImg.naturalWidth) * mw;
-                const my = (y / baseImg.naturalHeight) * mh;
-
-                hitCtx.imageSmoothingEnabled = false;
-                hitCtx.drawImage(maskImg, -Math.floor(mx), -Math.floor(my));
-
-                const data = hitCtx.getImageData(0, 0, 1, 1).data;
-                if (data[3] > 0) { // Alpha > 0 means it's a hit
-                    hitRegion = target.id;
-                    break;
-                }
-            }
-        }
-
-        // Block clicks on locked regions
-        if (hitRegion && lockedRegions.some(l => l.region === hitRegion)) {
+        // Block clicks on locked regions for Suggesters only
+        if (suggesterMode && hitRegion && lockedRegions.some(l => l.region === hitRegion)) {
             return; // ignore
         }
 
         if (hitRegion && onRegionClick) {
+            const el = elements.find(e => e.id === hitRegion);
+            const maskUrl = el ? el.maskUrl : `mask_${hitRegion}.png`;
+            console.log(`[PreviewCanvas Debug] Clicked Region:`, {
+                label: el ? el.label : hitRegion,
+                elementId: hitRegion,
+                mask_url: maskUrl,
+                source: hit?.source
+            });
             onRegionClick(hitRegion, e.clientX, e.clientY, e.shiftKey);
-        } else if (!hitRegion && debugInfo.visible) {
-            // Position-based fallback: only active in debug mode to avoid misleading
-            // "why did that region select?" moments during demo.
-            const pctY = (y / imgHeight) * 100;
-            const pctX = (x / imgWidth) * 100;
-            let fallbackRegion = 'walls'; // default
-            if (pctY < 35) {
-                fallbackRegion = 'roof';
-            } else if (pctY > 70 && pctX > 55) {
-                fallbackRegion = 'garage';
-            } else if (pctY > 60 && pctX > 35 && pctX < 55) {
-                fallbackRegion = 'door';
-            } else if (pctY > 30 && pctY < 60) {
-                fallbackRegion = 'walls';
-            } else {
-                fallbackRegion = 'walls';
-            }
-            if (onRegionClick) {
-                onRegionClick(fallbackRegion, e.clientX, e.clientY, e.shiftKey);
-            }
         } else if (!hitRegion && onBackgroundClick) {
             onBackgroundClick();
         }
@@ -544,70 +665,44 @@ export function PreviewCanvas({
         if (isDraggingSplit) return;
 
         if (!debugInfo.visible || !imagesLoaded || !canvasRef.current || (viewMode === '3d' || viewMode === 'virtual')) return;
-        const canvas = canvasRef.current;
         const baseImg = viewMode === 'photo' ? images['photo'] : images['schematic'];
         if (!baseImg) return;
 
         const coords = getCoordinateMap(clientX, clientY, baseImg);
 
         if (!coords) {
-            setDebugInfo(prev => ({ ...prev, active: false }));
+            setDebugInfo(prev => ({ ...prev, hoveredId: null }));
             return;
         }
 
         const { x, y, clickX, clickY } = coords;
 
-        const hitCtx = hitCtxRef.current;
-        if (!hitCtx) return;
+        // O(1) Cache Lookup
+        const hit = hitTestCache(x, y, baseImg.naturalWidth);
 
-        let hitRegion: string | null = null;
-        let lastAlpha = 0;
-        let matchedMaskWidth = images['mask_walls']?.naturalWidth || 640;
-        let matchedMaskHeight = images['mask_walls']?.naturalHeight || 640;
-
-        const checkTargets = [
-            ...elements.map(e => ({ id: e.id, key: `elem_${e.id}` })),
-            ...DESIGN_REGIONS.map(r => ({ id: r, key: `mask_${r}` }))
-        ];
-
-        for (const target of checkTargets) {
-            const maskImg = images[target.key];
-            if (maskImg && maskImg.naturalWidth) {
-                hitCtx.clearRect(0, 0, 1, 1);
-
-                const mw = maskImg.naturalWidth;
-                const mh = maskImg.naturalHeight;
-
-                const mx = (x / baseImg.naturalWidth) * mw;
-                const my = (y / baseImg.naturalHeight) * mh;
-
-                hitCtx.imageSmoothingEnabled = false;
-                hitCtx.drawImage(maskImg, -Math.floor(mx), -Math.floor(my));
-
-                const data = hitCtx.getImageData(0, 0, 1, 1).data;
-                lastAlpha = data[3];
-                if (data[3] > 0) {
-                    hitRegion = target.id;
-                    matchedMaskWidth = mw;
-                    matchedMaskHeight = mh;
-                    break;
+        let matId = null;
+        if (hit) {
+            matId = selectedMaterials[hit.id];
+            if (!matId && hit.source === 'element') {
+                const el = elements.find(el => el.id === hit.id);
+                if (el && el.groupKey) {
+                    matId = selectedMaterials[el.groupKey];
                 }
             }
         }
 
         setDebugInfo(prev => ({
             ...prev,
-            active: true,
             px: clickX, py: clickY,
-            mx: coords ? Math.floor((x / baseImg.naturalWidth) * matchedMaskWidth) : 0,
-            my: coords ? Math.floor((y / baseImg.naturalHeight) * matchedMaskHeight) : 0,
-            alpha: lastAlpha,
-            hitId: hitRegion
+            hoveredId: hit ? hit.id : null,
+            maskFileLoaded: hit ? hit.maskKey : null,
+            selectionSource: hit ? hit.source : null,
+            materialSource: matId ? (presetsMap[matId]?.name || matId) : 'none'
         }));
     };
 
     const handleCanvasMouseLeave = () => {
-        setDebugInfo(prev => ({ ...prev, active: false }));
+        setDebugInfo(prev => ({ ...prev, hoveredId: null }));
         setIsDraggingSplit(false);
     };
 
@@ -741,38 +836,55 @@ export function PreviewCanvas({
                         )}
 
                         {/* Hit-Testing Debug Overlay */}
-                        {debugInfo.visible && debugInfo.active && (
+                        {debugInfo.visible && (
                             <>
                                 {/* Pointer Dot */}
-                                <div
-                                    className="absolute w-3 h-3 bg-rose-500 rounded-full border-2 border-white shadow-sm pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2"
-                                    style={{ left: debugInfo.px, top: debugInfo.py }}
-                                />
+                                {debugInfo.hoveredId && (
+                                    <div
+                                        className="absolute w-3 h-3 bg-rose-500 rounded-full border-2 border-white shadow-sm pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2"
+                                        style={{ left: debugInfo.px, top: debugInfo.py }}
+                                    />
+                                )}
                                 {/* Info Box */}
                                 <div
-                                    className="absolute bg-slate-900/90 backdrop-blur text-white text-[10px] font-mono p-2 rounded-lg shadow-xl pointer-events-none z-50 w-48 border border-slate-700/50"
+                                    className="absolute bg-slate-900/90 backdrop-blur text-white text-[10px] font-mono p-2 rounded-lg shadow-xl pointer-events-none z-50 w-64 border border-slate-700/50"
                                     style={{
-                                        left: debugInfo.px + 16,
-                                        top: debugInfo.py + 16,
+                                        left: debugInfo.px > 0 ? debugInfo.px + 16 : 16,
+                                        top: debugInfo.py > 0 ? debugInfo.py + 16 : 16,
                                         // Keep it on screen
                                         transform: `translate(${debugInfo.px > 800 ? '-120%' : '0'}, ${debugInfo.py > 500 ? '-120%' : '0'})`
                                     }}
                                 >
-                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
-                                        <span className="text-slate-400">Screen</span>
-                                        <span>{Math.round(debugInfo.px)}, {Math.round(debugInfo.py)}</span>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1 font-bold">
+                                        <span className="text-rose-400">Design 2 Debug</span>
                                     </div>
                                     <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
-                                        <span className="text-slate-400">Mask Map</span>
-                                        <span>{debugInfo.mx}, {debugInfo.my}</span>
+                                        <span className="text-slate-400">Base Image</span>
+                                        <span className={debugInfo.baseImageLoaded ? "text-emerald-400" : (debugInfo.baseImageFailed ? "text-rose-500 font-bold" : "text-yellow-400")}>{debugInfo.baseImageLoaded ? 'Loaded' : (debugInfo.baseImageFailed ? 'Failed' : 'Loading')}</span>
                                     </div>
                                     <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
-                                        <span className="text-slate-400">Alpha Raw</span>
-                                        <span className={debugInfo.alpha > 0 ? "text-emerald-400 font-bold" : "text-slate-500"}>{debugInfo.alpha}</span>
+                                        <span className="text-slate-400">Dimensions</span>
+                                        <span>{debugInfo.maskWidth}x{debugInfo.maskHeight}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                        <span className="text-slate-400">Alpha Cache</span>
+                                        <span className={debugInfo.alphaCacheReady ? "text-emerald-400" : "text-yellow-400"}>{debugInfo.alphaCacheReady ? 'Ready' : 'Building'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                        <span className="text-slate-400">Hovered ID</span>
+                                        <span className={debugInfo.hoveredId ? "text-blue-400 font-bold" : "text-slate-500"}>{debugInfo.hoveredId || 'none'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                        <span className="text-slate-400">Mask Source</span>
+                                        <span className="text-slate-300">{debugInfo.maskFileLoaded || 'none'}</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-slate-700 pb-1 mb-1">
+                                        <span className="text-slate-400">Selection Type</span>
+                                        <span className="text-slate-300">{debugInfo.selectionSource || 'none'}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-slate-400">Hit ID</span>
-                                        <span className={debugInfo.hitId ? "text-blue-400 font-bold" : "text-slate-500"}>{debugInfo.hitId || 'none'}</span>
+                                        <span className="text-slate-400">Material</span>
+                                        <span className="text-slate-300">{debugInfo.materialSource || 'none'}</span>
                                     </div>
                                 </div>
                             </>

@@ -31,16 +31,7 @@ module Mutations
       RegionLock.transaction do
         lock = design.region_locks.find_by(region: region)
 
-        if lock && lock.expires_at && lock.expires_at <= Time.current
-          lock.destroy!
-          lock = nil
-        end
-
         if lock
-          # Only the lock owner (by participant_id match or display_name) can unlock
-          unless lock.locked_by == locked_by
-            return { region_lock: lock, success: false, errors: ["Region is locked by #{lock.locked_by}. Only they can unlock it."] }
-          end
           lock.destroy
           ActionCable.server.broadcast("design_room_#{design.id}", {
             type: 'region_unlock',
@@ -53,8 +44,7 @@ module Mutations
           lock = design.region_locks.create!(
             region: region,
             locked_by: locked_by,
-            lock_reason: lock_reason,
-            expires_at: 10.minutes.from_now
+            lock_reason: lock_reason
           )
 
           ActionCable.server.broadcast("design_room_#{design.id}", {

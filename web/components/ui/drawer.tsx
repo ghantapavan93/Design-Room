@@ -13,29 +13,33 @@ export function Drawer({ open, onOpenChange, side = 'right', title, panelClassNa
 
     if (!open) return null;
 
-    const sideClass = side === 'right' ? 'right-0 border-l border-neutral-200' : 'left-0 border-r border-neutral-200';
+    const sideClass = side === 'right' ? 'right-0 border-l border-white/10' : 'left-0 border-r border-white/10';
     const slideClass = side === 'right' ? 'slide-in-from-right' : 'slide-in-from-left';
 
     return (
-        <div className="fixed inset-0 z-40 flex justify-end bg-black/20" aria-hidden="true" onClick={(e) => {
+        <div className="fixed inset-0 z-[100] flex justify-end" aria-hidden="true" onClick={(e) => {
             if (e.target === e.currentTarget) onOpenChange(false);
         }}>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-opacity pointer-events-none" />
+
             <div
-                className={`fixed inset-y-0 ${sideClass} z-50 w-full ${panelClassName || 'max-w-sm'} bg-white shadow-xl animate-in ${slideClass} duration-300 flex flex-col`}
+                className={`relative inset-y-0 ${sideClass} z-[110] w-full ${panelClassName || 'sm:w-[420px]'} bg-[#0f0f12]/90 backdrop-blur-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] animate-in ${slideClass} fade-in duration-300 ease-out flex flex-col`}
                 role="dialog"
                 aria-modal="true"
             >
-                <div className="px-6 py-4 flex items-center justify-between border-b border-neutral-100 shrink-0">
-                    <h2 className="text-lg font-semibold">{title}</h2>
+                <div className="px-6 py-5 flex items-center justify-between border-b border-white/10 shrink-0">
+                    <h2 className="text-sm font-black tracking-widest uppercase text-white">{title}</h2>
                     <button
                         onClick={() => onOpenChange(false)}
-                        className="text-neutral-500 hover:text-neutral-900 rounded-sm focus:outline-none focus:ring-2 focus:ring-neutral-950"
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
                         aria-label="Close drawer"
                     >
-                        &times;
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
                 </div>
-                <div className={`flex-1 ${contentClassName || 'overflow-y-auto p-6'}`}>
+                <div className={`flex-1 ${contentClassName || 'overflow-y-auto p-6 text-neutral-300'}`}>
                     {children}
                 </div>
             </div>

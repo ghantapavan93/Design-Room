@@ -2,7 +2,7 @@ import { DesignRegion } from './regions';
 
 export interface MaterialPreset {
     id: string;
-    category: DesignRegion;
+    category: string; // DesignRegion or extended categories like 'trim'
     name: string;
     brand: string;
     colorFamily?: string;

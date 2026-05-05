@@ -4,6 +4,9 @@ import { DesignRegion } from '../../lib/regions';
 import { PreviewCanvas } from './preview_canvas';
 import { Button } from '../ui/button';
 import { computeEstimate, MOCK_MEASUREMENTS } from '../../lib/estimate_engine';
+import { regionLabel } from './project_readiness_panel';
+
+import { DesignElement } from '../../lib/types';
 
 interface OptionCompareProps {
     version: DesignVersion;
@@ -11,9 +14,12 @@ interface OptionCompareProps {
     presetsMap: Record<string, MaterialPreset>;
     baseImageUrl: string;
     masksUrlPrefix: string;
+    elements: DesignElement[];
     onClose: () => void;
     onRestore: (versionId: string) => void;
     onSaveCurrentAsOption: (label: string) => Promise<void>;
+    onMarkFinal?: (versionId: string) => Promise<void>;
+    onSendForReview?: () => void;
     isEditor: boolean;
 }
 
@@ -46,13 +52,17 @@ export function OptionCompare({
     presetsMap,
     baseImageUrl,
     masksUrlPrefix,
+    elements,
     onClose,
     onRestore,
     onSaveCurrentAsOption,
+    onMarkFinal,
+    onSendForReview,
     isEditor
 }: OptionCompareProps) {
     const [newLabel, setNewLabel] = React.useState(() => `Option ${Math.floor(Math.random() * 90) + 10}`);
     const [isSaving, setIsSaving] = React.useState(false);
+    const [isFinalizing, setIsFinalizing] = React.useState(false);
 
     const handleSave = async () => {
         if (!newLabel.trim() || isSaving) return;
@@ -64,14 +74,17 @@ export function OptionCompare({
         }
     };
 
+    const handleFinalize = async () => {
+        if (!onMarkFinal || isFinalizing) return;
+        setIsFinalizing(true);
+        try { await onMarkFinal(version.id); } finally { setIsFinalizing(false); }
+    };
+
     const currentTotal = computeEstimate(currentState, presetsMap, MOCK_MEASUREMENTS).total;
     const versionTotal = computeEstimate((version.snapshotStateJson || {}), presetsMap, MOCK_MEASUREMENTS).total;
     const diff = versionTotal - currentTotal;
-
     const diffFormatted = Math.abs(diff).toLocaleString();
     const isMoreExpensive = diff > 0;
-
-    // Compute diffs for Swatches
     const diffedRegions = Object.keys(currentState).filter(region => currentState[region as DesignRegion] !== version.snapshotStateJson[region as DesignRegion]);
 
     return (
@@ -84,36 +97,35 @@ export function OptionCompare({
                         </svg>
                     </button>
                     <div>
-                        <h2 className="text-lg font-semibold">Comparing Options</h2>
-                        <p className="text-xs text-neutral-400">Current Work vs. {version.label}</p>
+                        <h2 className="text-sm font-bold text-white">Current Design  ↔  {version.label}</h2>
+                        <p className="text-[10px] text-neutral-500 mt-0.5">
+                            {diffedRegions.length} region{diffedRegions.length !== 1 ? 's' : ''} differ
+                            {diff !== 0 && (
+                                <> &nbsp;·&nbsp; <span className={isMoreExpensive ? 'text-rose-400' : 'text-emerald-400'}>{isMoreExpensive ? '+' : '-'}${diffFormatted} scope impact</span></>
+                            )}
+                        </p>
                     </div>
                 </div>
 
-                <div className="flex gap-3 items-center">
+                <div className="flex gap-2 items-center">
                     <input
                         value={newLabel}
                         onChange={(e) => setNewLabel(e.target.value)}
-                        className="h-9 px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white outline-none"
-                        placeholder="New option name"
+                        className="h-8 px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-xs text-white outline-none"
+                        placeholder="Save current as..."
                         disabled={isSaving}
                     />
-                    <Button
-                        variant="outline"
-                        className="text-white border-neutral-600 hover:bg-neutral-800"
-                        onClick={handleSave}
-                        disabled={!newLabel.trim() || isSaving}
-                    >
+                    <Button variant="outline" className="text-white border-neutral-600 hover:bg-neutral-800 h-8 text-xs" onClick={handleSave} disabled={!newLabel.trim() || isSaving}>
                         {isSaving ? 'Saving...' : 'Save current'}
                     </Button>
-
-                    <Button variant="outline" className="text-white border-neutral-600 hover:bg-neutral-800" onClick={onClose}>
-                        Exit
-                    </Button>
-
-                    {isEditor && (
-                        <Button className="bg-blue-600 hover:bg-blue-700 text-white border-0" onClick={() => onRestore(version.id)}>
-                            Apply {version.label}
+                    {isEditor && onSendForReview && (
+                        <Button variant="outline" className="text-amber-300 border-amber-700/50 hover:bg-amber-900/20 h-8 text-xs" onClick={onSendForReview}>
+                            Send for Review
                         </Button>
+                    )}
+                    <Button variant="outline" className="text-white border-neutral-600 hover:bg-neutral-800 h-8 text-xs" onClick={onClose}>Exit</Button>
+                    {isEditor && (
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white border-0 h-8 text-xs" onClick={() => onRestore(version.id)}>Apply {version.label}</Button>
                     )}
                 </div>
             </div>
@@ -142,28 +154,37 @@ export function OptionCompare({
                         </div>
                     )}
 
-                    {/* Material Diffs */}
+                {/* Changed region chip rail + diff cards */}
                     {diffedRegions.length > 0 && (
                         <div className="bg-neutral-900/90 backdrop-blur-xl border border-neutral-700 rounded-2xl shadow-2xl p-4 flex flex-col gap-3 animate-fade-up animate-delay-150 pointer-events-auto w-[400px]">
+                            {/* Region chip rail */}
+                            <div className="flex flex-wrap gap-1.5">
+                                {diffedRegions.map(region => {
+                                    const toMat = presetsMap[version.snapshotStateJson[region as DesignRegion]];
+                                    return (
+                                        <span key={region} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', color: '#d1d5db' }}>
+                                            {toMat && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: toMat.swatchHex }} />}
+                                            {regionLabel(region)}
+                                        </span>
+                                    );
+                                })}
+                            </div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400 text-center">
-                                Swapped Materials
+                                Material Changes
                             </span>
-                            <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="flex flex-col gap-3 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
                                 {diffedRegions.map(region => {
                                     const currMaterial = presetsMap[currentState[region as DesignRegion]];
                                     const verMaterial = presetsMap[version.snapshotStateJson[region as DesignRegion]];
                                     if (!currMaterial || !verMaterial) return null;
-
                                     return (
                                         <div key={region} className="flex flex-col gap-2 p-3 bg-black/20 rounded-xl border border-white/5">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-300">
-                                                {region}
-                                            </span>
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-neutral-300">{regionLabel(region)}</span>
                                             <div className="flex items-stretch gap-2">
-                                                <MaterialCard label="Current Work" preset={currMaterial} accent="#9ca3af" />
+                                                <MaterialCard label="Current" preset={currMaterial} accent="#9ca3af" />
                                                 <div className="flex flex-col items-center justify-center gap-1">
                                                     <div className="w-px h-6 bg-neutral-700" />
-                                                    <span className="text-[9px] font-black text-neutral-600">VS</span>
+                                                    <span className="text-[9px] font-black text-neutral-600">→</span>
                                                     <div className="w-px h-6 bg-neutral-700" />
                                                 </div>
                                                 <MaterialCard label={version.label} preset={verMaterial} accent="#60a5fa" />
@@ -172,20 +193,34 @@ export function OptionCompare({
                                     );
                                 })}
                             </div>
+                            {/* Finalize shortcut */}
+                            {isEditor && onMarkFinal && (
+                                <button
+                                    onClick={handleFinalize}
+                                    disabled={isFinalizing}
+                                    className="mt-1 w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+                                    style={{ background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '1px solid rgba(52,211,153,0.2)' }}
+                                >
+                                    {isFinalizing ? 'Finalizing...' : `✓ Finalize ${version.label}`}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
 
-                {/* Left Side: Current State */}
+                {/* Left: Current */}
                 <div className="flex-1 border-r border-neutral-700 flex flex-col">
                     <div className="h-12 bg-neutral-800/50 flex items-center justify-between px-4 border-b border-neutral-700 shrink-0">
-                        <span className="text-sm font-medium text-white px-3 py-1 bg-neutral-700 rounded-full">Current Design</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-neutral-300 px-3 py-1 bg-neutral-700 rounded-full">← Current</span>
+                        </div>
                         <span className="text-xs text-neutral-400 font-mono tracking-widest uppercase">${Math.round(currentTotal).toLocaleString()}</span>
                     </div>
                     <div className="flex-1 relative">
                         <PreviewCanvas
                             baseImageUrl={baseImageUrl}
                             masksUrlPrefix={masksUrlPrefix}
+                            elements={elements}
                             selectedMaterials={currentState}
                             presetsMap={presetsMap}
                             selectedRegions={[]}
@@ -194,16 +229,19 @@ export function OptionCompare({
                     </div>
                 </div>
 
-                {/* Right Side: Version State */}
+                {/* Right: Version */}
                 <div className="flex-1 flex flex-col">
                     <div className="h-12 bg-neutral-800/50 flex items-center justify-between px-4 border-b border-neutral-700 shrink-0">
-                        <span className="text-sm font-medium text-blue-200 px-3 py-1 bg-blue-900/50 rounded-full">{version.label}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-blue-200 px-3 py-1 bg-blue-900/50 rounded-full">{version.label} →</span>
+                        </div>
                         <span className="text-xs text-blue-200/70 font-mono tracking-widest uppercase">${Math.round(versionTotal).toLocaleString()}</span>
                     </div>
                     <div className="flex-1 relative">
                         <PreviewCanvas
                             baseImageUrl={baseImageUrl}
                             masksUrlPrefix={masksUrlPrefix}
+                            elements={elements}
                             selectedMaterials={version.snapshotStateJson as Record<DesignRegion, string>}
                             presetsMap={presetsMap}
                             selectedRegions={[]}

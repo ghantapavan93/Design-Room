@@ -16,8 +16,16 @@ module Mutations
         return { success: false, errors: ["Invalid or expired design session."], error_code: 'UNAUTHORIZED', link: nil }
       end
 
-      perm_error = ensure_editor_permission(session, participant_id)
-      return { success: false, errors: perm_error[:errors], error_code: perm_error[:error_code], link: nil } if perm_error
+      perm_error = check_permission(session, participant_id, 'editor')
+      if perm_error
+        # Explicitly return the specific forbidden/unauthorized error from BaseMutation
+        return { 
+          success: false, 
+          errors: ["Only the contractor (Editor) can generate inviting share links. Your current role is restricted."], 
+          error_code: 'FORBIDDEN', 
+          link: nil 
+        }
+      end
 
       link = ShareLink.create!(
         design: design,

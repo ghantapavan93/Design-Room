@@ -33,7 +33,7 @@ export function WorkflowShowcase() {
     const activeMedia = MEDIA[mode][activeStep as 1 | 2 | 3 | 4];
 
     return (
-        <section className="max-w-6xl mx-auto w-full px-4 pb-24 pt-8">
+        <section className="w-full pb-8 pt-2">
             <div className="flex flex-col items-center mb-12">
                 <h2 className="text-3xl md:text-4xl font-extrabold mb-6 tracking-tight text-center" style={{ color: 'var(--text-primary)' }}>
                     How it works

@@ -1,0 +1,24 @@
+{
+  "note": "Best-effort manual masks traced from the provided 640x640 Design 2 image. Good for prototyping and review, not guaranteed pixel-perfect production segmentation.",
+  "elements": [
+    "roof_center_connector",
+    "entry_canopy",
+    "wall_left_cedar",
+    "wall_center_white",
+    "wall_right_upper_white",
+    "wall_right_dark_cladding",
+    "window_left_tall",
+    "window_center_horizontal",
+    "window_right_upper",
+    "entry_glass",
+    "front_door",
+    "garage_door"
+  ],
+  "groups": [
+    "roof_group",
+    "walls_group",
+    "windows_group",
+    "front_door",
+    "garage_door"
+  ]
+}

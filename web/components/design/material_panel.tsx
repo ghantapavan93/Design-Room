@@ -65,7 +65,7 @@ export function MaterialPanel({
     }, []);
 
     // Correctly map the active selection to a material category
-    const activeCategory = React.useMemo(() => {
+    const activeCategory: string = React.useMemo(() => {
         if (selectedRegions.length === 0) return 'walls';
         const lastId = selectedRegions[selectedRegions.length - 1];
         const element = elements.find(e => e.id === lastId);
@@ -92,7 +92,7 @@ export function MaterialPanel({
             // Match the material category to our active selection category
             const categoryMatch = p.category === activeCategory ||
                 (activeCategory === 'walls' && p.category === 'walls') ||
-                (activeCategory === 'trim' && (p.category === 'trim' || p.category === 'walls')) ||
+                ((activeCategory as string) === 'trim' && (p.category === 'trim' || p.category === 'walls')) ||
                 ((activeCategory === 'door' || activeCategory === 'garage') && (p.category === activeCategory || p.category === 'trim'));
 
             if (!categoryMatch) return false;
@@ -132,16 +132,43 @@ export function MaterialPanel({
                     <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
                         Customize {activeElementName && <span style={{ color: 'var(--text-primary)' }}>• {activeElementName}</span>}
                     </span>
-                    {isSuggester && (
-                        <span className="pill text-xs" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
-                            Suggest mode
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {isSuggester && (
+                            <span className="pill text-xs px-2 py-0.5 rounded-md" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                Suggest mode
+                            </span>
+                        )}
+                        {selectedRegions.length > 0 && (() => {
+                            const expandedRegions: string[] = [];
+                            selectedRegions.forEach(r => {
+                                if (['walls', 'roof', 'windows', 'trim', 'door', 'garage'].includes(r)) {
+                                    const matched = elements?.filter(e => e.groupKey === r).map(e => String(e.id)) || [];
+                                    if (matched.length > 0) expandedRegions.push(...matched);
+                                    else expandedRegions.push(r);
+                                } else {
+                                    expandedRegions.push(r);
+                                }
+                            });
+                            return expandedRegions.some(r => selectedMaterials[r]);
+                        })() && (
+                            <button
+                                onClick={() => {
+                                    onMaterialSelect(selectedRegions, { id: "REMOVE", name: "Clear", brand: "", category: activeCategory } as any);
+                                }}
+                                className="text-[10px] font-bold uppercase tracking-widest transition-all px-2.5 py-1 rounded-md"
+                                style={{ color: 'var(--text-muted)', background: 'var(--bg-hover)' }}
+                                onMouseOver={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-active)'; }}
+                                onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Category row — Hover's exact layout: Garage  Paint  Roof / Windows  Walls  Door */}
                 <div className="mb-4">
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                         {VISUAL_CATEGORIES.map(cat => {
                             const hasSuggestion = pendingSuggestion?.region === cat.region;
                             const isActive = activeCategory === cat.region;
@@ -149,12 +176,15 @@ export function MaterialPanel({
                                 <button
                                     key={cat.label}
                                     onClick={() => handleVisualCategory(cat)}
-                                    className="category-btn"
-                                    style={isActive ? { background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 } : {}}
+                                    className={`px-3.5 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase transition-all duration-300 flex items-center gap-1.5 border ${
+                                        isActive
+                                            ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.15)] scale-[1.02]'
+                                            : 'bg-white/5 text-neutral-400 border-white/5 hover:bg-white/10 hover:text-white hover:border-white/10'
+                                    }`}
                                 >
                                     {cat.label}
                                     {hasSuggestion && (
-                                        <span className="inline-block w-1.5 h-1.5 rounded-full ml-1" style={{ background: '#60a5fa' }} />
+                                        <span className={`inline-block w-1.5 h-1.5 rounded-full ml-1 ${isActive ? 'bg-blue-500' : 'bg-blue-400'}`} />
                                     )}
                                 </button>
                             );
@@ -206,28 +236,24 @@ export function MaterialPanel({
                         </button>
                         {brandMenuOpen && (
                             <div
-                                className="absolute right-0 top-full mt-1 rounded-xl overflow-hidden z-50"
+                                className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200"
                                 style={{
                                     minWidth: '190px',
-                                    background: 'var(--bg-overlay)',
-                                    border: '1px solid var(--border-default)',
-                                    boxShadow: 'var(--shadow-lg)',
+                                    background: '#121216',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
                                 }}
                             >
                                 {BRANDS.map(brand => (
                                     <button
                                         key={brand}
-                                        className="w-full text-left px-4 py-2.5 text-sm transition-colors"
-                                        style={{
-                                            color: 'var(--text-primary)',
-                                            background: selectedBrand === brand ? 'var(--bg-active)' : 'transparent',
-                                        }}
+                                        className={`w-full text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-colors ${
+                                            selectedBrand === brand ? 'bg-white/10 text-white' : 'text-neutral-400 hover:bg-white/5 hover:text-white'
+                                        }`}
                                         onClick={() => { setSelectedBrand(brand); setBrandMenuOpen(false); }}
-                                        onMouseOver={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
-                                        onMouseOut={e => (e.currentTarget.style.background = selectedBrand === brand ? 'var(--bg-active)' : 'transparent')}
                                     >
                                         {selectedBrand === brand && (
-                                            <span className="mr-1.5" style={{ color: 'var(--accent)' }}>✓ </span>
+                                            <span className="mr-2 text-white">✓</span>
                                         )}
                                         {brand}
                                     </button>
@@ -260,9 +286,9 @@ export function MaterialPanel({
             </div>
 
             {/* ── Design Styles (Premium recommendations) ── */}
-            <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Pro Styles</p>
-                <div className="space-y-2">
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                <p className="text-[10px] mb-3 font-black uppercase tracking-[0.2em] text-neutral-500">Pro Styles</p>
+                <div className="space-y-2.5">
                     {[
                         { name: 'Modern Charcoal', desc: 'Sleek & bold', colors: ['#2a2e35', '#2e3b2f', '#5a5f63'] },
                         { name: 'Pacific Coast', desc: 'Calm & airy', colors: ['#4a7fa5', '#ffffff', '#d4c4a0'] },
@@ -270,11 +296,11 @@ export function MaterialPanel({
                     ].map(style => (
                         <button
                             key={style.name}
-                            className="w-full flex items-center gap-3 p-2 rounded-xl transition-all border"
-                            style={{
-                                background: styleFilter === style.name ? 'var(--bg-active)' : 'transparent',
-                                borderColor: styleFilter === style.name ? 'var(--accent)' : 'transparent'
-                            }}
+                            className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-300 border hover:scale-[1.02] ${
+                                styleFilter === style.name
+                                    ? 'bg-white/10 border-white/20 shadow-sm'
+                                    : 'bg-white/5 border-white/5 hover:border-white/10 hover:bg-white/10'
+                            }`}
                             onClick={() => {
                                 setStyleFilter(styleFilter === style.name ? null : style.name);
                                 setColorFamilyFilter(null);
@@ -322,12 +348,12 @@ export function MaterialPanel({
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
 
                 {/* ── Recently Used (Empty Search Context) ── */}
-                {!searchQuery && selectedBrand === 'All brands' && !colorFamilyFilter && !styleFilter && recentMaterials.filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim')).length > 0 && (
+                {!searchQuery && selectedBrand === 'All brands' && !colorFamilyFilter && !styleFilter && recentMaterials.filter(p => p.category === activeCategory || ((activeCategory as string) === 'door' && p.category === 'trim') || ((activeCategory as string) === 'garage' && p.category === 'trim')).length > 0 && (
                     <div>
                         <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Recently Used</p>
                         <div className="grid grid-cols-2 gap-2.5">
                             {recentMaterials
-                                .filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim'))
+                                .filter(p => p.category === activeCategory || ((activeCategory as string) === 'door' && p.category === 'trim') || ((activeCategory as string) === 'garage' && p.category === 'trim'))
                                 .map(preset => {
                                     const isSelected = selectedRegions.length > 0
                                         ? selectedRegions.every(r => selectedMaterials[r] === preset.id)
@@ -341,6 +367,7 @@ export function MaterialPanel({
                                             onSelect={(p) => {
                                                 addRecentMaterial(p);
                                                 setRecentMaterials(getRecentMaterials());
+                                                console.log('[DEBUG] MaterialPanel onSelect (Recent):', p.id, 'Regions:', selectedRegions.length > 0 ? selectedRegions : [activeCategory]);
                                                 onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeCategory], p);
                                             }}
                                         />
@@ -369,6 +396,7 @@ export function MaterialPanel({
                                     onSelect={(p) => {
                                         addRecentMaterial(p);
                                         setRecentMaterials(getRecentMaterials());
+                                        console.log('[DEBUG] MaterialPanel onSelect (Catalog):', p.id, 'Regions:', selectedRegions.length > 0 ? selectedRegions : [activeCategory]);
                                         onMaterialSelect(selectedRegions.length > 0 ? selectedRegions : [activeCategory], p);
                                     }}
                                 />
@@ -394,7 +422,7 @@ export function MaterialPanel({
                                 <div className="mt-8 text-left">
                                     <p className="text-xs mb-3 font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Recommended</p>
                                     <div className="grid grid-cols-2 gap-2.5">
-                                        {presets.filter(p => p.category === activeCategory || (activeCategory === 'door' && p.category === 'trim') || (activeCategory === 'garage' && p.category === 'trim') || (activeCategory === 'walls' && p.category === 'walls')).slice(0, 2).map((preset) => (
+                                        {presets.filter(p => p.category === activeCategory || ((activeCategory as string) === 'door' && p.category === 'trim') || ((activeCategory as string) === 'garage' && p.category === 'trim') || (activeCategory === 'walls' && p.category === 'walls')).slice(0, 2).map((preset) => (
                                             <MaterialCard
                                                 key={`fallback-${preset.id}`}
                                                 preset={preset}

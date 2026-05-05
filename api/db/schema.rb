@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_29_000300) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_13_070013) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,8 +22,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_29_000300) do
     t.string "actor_permission"
     t.string "event_type", null: false
     t.string "region"
-    t.integer "from_material_id"
-    t.integer "to_material_id"
+    t.string "from_material_id"
+    t.string "to_material_id"
     t.text "note"
     t.string "client_txn_id"
     t.datetime "created_at", null: false

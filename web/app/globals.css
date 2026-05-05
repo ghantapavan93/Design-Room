@@ -227,25 +227,43 @@ h6 {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
   cursor: ew-resize;
   z-index: 10;
   transform: translateX(-50%);
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
 }
 
-.ba-slider::before,
+.ba-slider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  top: 50%;
+  margin-top: -24px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(0,0,0,0.05);
+  border: 1px solid rgba(255, 255, 255, 1);
+}
+
 .ba-slider::after {
   content: '';
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  width: 40px;
-  height: 40px;
-  background: white;
-  border-radius: 50%;
   top: 50%;
-  margin-top: -20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  margin-top: -6px;
+  width: 2px;
+  height: 12px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 2px;
+  box-shadow: -4px 0 0 rgba(0,0,0,0.2), 4px 0 0 rgba(0,0,0,0.2);
+  pointer-events: none;
 }
 
 /* Spinner */
@@ -297,3 +315,215 @@ h6 {
 .pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
 }
+
+/* Shimmer */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* ─── Shared Shell System ───────────────────────────────────────── */
+
+/* Centered content shell — use on every section wrapper */
+.shell {
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (min-width: 768px) {
+  .shell {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .shell {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
+/* Wide shell for gallery-first pages */
+.shell-wide {
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (min-width: 768px) {
+  .shell-wide {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+}
+
+/* Section vertical rhythm */
+.section {
+  padding-top: 80px;
+  padding-bottom: 80px;
+}
+
+@media (min-width: 768px) {
+  .section {
+    padding-top: 112px;
+    padding-bottom: 112px;
+  }
+}
+
+.section-sm {
+  padding-top: 48px;
+  padding-bottom: 48px;
+}
+
+/* Section intro — centered label + headline + subhead block */
+.section-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  margin-bottom: 56px;
+}
+
+.section-intro.left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+/* Eyebrow label — small chip above headline */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: 9999px;
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+}
+
+/* Stage frame — premium container for hero visuals */
+.stage-frame {
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.07),
+    0 24px 64px rgba(0, 0, 0, 0.09);
+  background: #fff;
+}
+
+/* Proof strip — logos / stats bar */
+.proof-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 32px;
+  padding: 28px 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.proof-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.proof-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.proof-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Editorial section label row */
+.editorial-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.editorial-label h2 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.editorial-label .badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fde68a;
+}
+
+/* Card — shared premium surface */
+.card-surface {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  transition: box-shadow 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+}
+
+.card-surface:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Page fade reveal (used with IntersectionObserver or simply always-on) */
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  animation: revealUp 0.5s var(--ease-out) both;
+}
+
+.reveal-d1 { animation-delay: 60ms; }
+.reveal-d2 { animation-delay: 120ms; }
+.reveal-d3 { animation-delay: 180ms; }
+.reveal-d4 { animation-delay: 240ms; }
+.reveal-d5 { animation-delay: 300ms; }
+.reveal-d6 { animation-delay: 360ms; }

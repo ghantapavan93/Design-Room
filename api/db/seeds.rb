@@ -1,6 +1,11 @@
 # Seed data for Design Room
 
 puts "Cleaning database..."
+DesignExport.destroy_all  if defined?(DesignExport)
+ShareLink.destroy_all     if defined?(ShareLink)
+DesignVersion.destroy_all if defined?(DesignVersion)
+DesignState.destroy_all   if defined?(DesignState)
+DesignElement.destroy_all if defined?(DesignElement)
 Design.destroy_all
 MaterialPreset.destroy_all
 
@@ -83,23 +88,21 @@ design1 = Design.create!(
 )
 design1.create_design_state!(
   state_json: {
-    'walls' => material_records.find { |m| m.name == 'Coastal Blue' }.id,
-    'roof' => material_records.find { |m| m.name == 'Onyx Black' }.id,
-    'trim' => material_records.find { |m| m.name == 'Arctic White' }.id,
+    'walls'   => material_records.find { |m| m.name == 'Coastal Blue' }.id,
+    'roof'    => material_records.find { |m| m.name == 'Onyx Black' }.id,
     'windows' => material_records.find { |m| m.name == 'Black Bronze' }.id,
-    'door' => material_records.find { |m| m.name == 'Monterey Taupe' }.id,
-    'garage' => material_records.find { |m| m.name == 'Modern Charcoal' }.id
+    'door'    => material_records.find { |m| m.name == 'Monterey Taupe' }.id,
+    'garage'  => material_records.find { |m| m.name == 'Modern Charcoal' }.id
   },
   last_saved_at: Time.current
 )
 
 design1.elements.create!([
-  { label: 'Main Roof', kind: 'roof', group_key: 'roof', mask_url: 'mask_roof.png', sort_order: 1 },
-  { label: 'Left Window', kind: 'window', group_key: 'windows', mask_url: 'window_1.png', sort_order: 2 },
-  { label: 'Right Window', kind: 'window', group_key: 'windows', mask_url: 'window_2.png', sort_order: 3 },
-  { label: 'Exterior Trim', kind: 'trim', group_key: 'trim', mask_url: 'mask_trim.png', sort_order: 4 },
-  { label: 'Front Door', kind: 'door', group_key: 'door', mask_url: 'mask_door.png', sort_order: 5 },
-  { label: 'Garage Door', kind: 'garage', group_key: 'garage', mask_url: 'mask_garage.png', sort_order: 6 }
+  { label: 'Main Roof',      kind: 'roof',    group_key: 'roof',    mask_url: 'mask_roof.png',    sort_order: 1 },
+  { label: 'Exterior Walls', kind: 'walls',   group_key: 'walls',   mask_url: 'mask_walls.png',   sort_order: 2 },
+  { label: 'Windows',        kind: 'window',  group_key: 'windows', mask_url: 'mask_windows.png', sort_order: 3 },
+  { label: 'Front Door',     kind: 'door',    group_key: 'door',    mask_url: 'mask_door.png',    sort_order: 4 },
+  { label: 'Garage Door',    kind: 'garage',  group_key: 'garage',  mask_url: 'mask_garage.png',  sort_order: 5 }
 ])
 
 # House 2 - Classic Upgrade
@@ -111,42 +114,45 @@ design2 = Design.create!(
   mask_ready: true
 )
 design2.create_design_state!(
-  state_json: {
-    'walls' => material_records.find { |m| m.name == 'Manchester Tan' }.id,
-    'roof' => material_records.find { |m| m.name == 'Terra Cotta Tile' }.id,
-    'trim' => material_records.find { |m| m.name == 'Monterey Taupe' }.id,
-    'windows' => material_records.find { |m| m.name == 'Dark Bronze' }.id,
-    'door' => material_records.find { |m| m.name == 'Monterey Taupe' }.id,
-    'garage' => material_records.find { |m| m.name == 'Modern Charcoal' }.id
-  },
+  state_json: {},
   last_saved_at: Time.current
 )
 
 design2.elements.create!([
-  { label: 'Main Roof', kind: 'roof', group_key: 'roof', mask_url: 'mask_roof.png', sort_order: 1 },
-  { label: 'Left Window', kind: 'window', group_key: 'windows', mask_url: 'window_1.png', sort_order: 2 },
-  { label: 'Right Window', kind: 'window', group_key: 'windows', mask_url: 'window_2.png', sort_order: 3 },
-  { label: 'Exterior Trim', kind: 'trim', group_key: 'trim', mask_url: 'mask_trim.png', sort_order: 4 },
-  { label: 'Front Door', kind: 'door', group_key: 'door', mask_url: 'mask_door.png', sort_order: 5 }
+  { label: 'Entry Canopy', kind: 'roof', group_key: 'roof', mask_url: 'entry_canopy.png', sort_order: 1 },
+  { label: 'Center Connector', kind: 'roof', group_key: 'roof', mask_url: 'roof_center_connector.png', sort_order: 2 },
+  { label: 'Left Cedar Wall', kind: 'walls', group_key: 'walls', mask_url: 'wall_left_cedar.png', sort_order: 3 },
+  { label: 'Center White Wall', kind: 'walls', group_key: 'walls', mask_url: 'wall_center_white.png', sort_order: 4 },
+  { label: 'Right Upper White', kind: 'walls', group_key: 'walls', mask_url: 'wall_right_upper_white.png', sort_order: 5 },
+  { label: 'Right Dark Cladding', kind: 'walls', group_key: 'walls', mask_url: 'wall_right_dark_cladding.png', sort_order: 6 },
+  { label: 'Left Tall Window', kind: 'window', group_key: 'windows', mask_url: 'window_left_tall.png', sort_order: 7 },
+  { label: 'Center Window', kind: 'window', group_key: 'windows', mask_url: 'window_center_horizontal.png', sort_order: 8 },
+  { label: 'Right Upper Window', kind: 'window', group_key: 'windows', mask_url: 'window_right_upper.png', sort_order: 9 },
+  { label: 'Entry Glass', kind: 'window', group_key: 'windows', mask_url: 'entry_glass.png', sort_order: 10 },
+  { label: 'Front Door', kind: 'door', group_key: 'door', mask_url: 'front_door.png', sort_order: 11 },
+  { label: 'Garage Door', kind: 'garage', group_key: 'garage', mask_url: 'garage_door.png', sort_order: 12 }
 ])
 
-# House 3 - Default Empty (For new builder flow)
+# House 3 - Blank Canvas (Modern Farmhouse)
 design3 = Design.create!(
   id: 3, 
   title: '789 Blank Canvas', 
   base_media_url: '/demo/blank/base.jpg',
   masks_url_prefix: '/demo/blank',
-  mask_ready: false
+  mask_ready: true
 )
 design3.create_design_state!(
-  state_json: {
-    'walls' => material_records.find { |m| m.name == 'Alabaster White' }.id,
-    'roof' => material_records.find { |m| m.name == 'Estate Gray' }.id,
-    'trim' => material_records.find { |m| m.name == 'Arctic White' }.id,
-    'windows' => material_records.find { |m| m.name == 'White Vinyl' }.id
-  },
+  state_json: {},
   last_saved_at: Time.current
 )
+
+design3.elements.create!([
+  { label: 'Main Roof',    kind: 'roof',    group_key: 'roof',    mask_url: 'mask_roof.png',    sort_order: 1 },
+  { label: 'Exterior Walls', kind: 'walls', group_key: 'walls',  mask_url: 'mask_walls.png',   sort_order: 2 },
+  { label: 'Windows',     kind: 'window',  group_key: 'windows', mask_url: 'mask_windows.png', sort_order: 3 },
+  { label: 'Front Door',  kind: 'door',    group_key: 'door',    mask_url: 'mask_door.png',    sort_order: 4 },
+  { label: 'Garage Doors', kind: 'garage', group_key: 'garage',  mask_url: 'mask_garage.png',  sort_order: 5 }
+])
 
 puts "Creating Pre-seeded options for House 1..."
 option_a = DesignVersion.create!(
@@ -154,9 +160,8 @@ option_a = DesignVersion.create!(
   label: 'Option A Light Coastal',
   created_by: 'Alex Contractor',
   snapshot_state_json: {
-    'walls' => material_records.find { |m| m.name == 'Coastal Blue' }.id,
-    'roof' => material_records.find { |m| m.name == 'Onyx Black' }.id,
-    'trim' => material_records.find { |m| m.name == 'Arctic White' }.id,
+    'walls'   => material_records.find { |m| m.name == 'Coastal Blue' }.id,
+    'roof'    => material_records.find { |m| m.name == 'Onyx Black' }.id,
     'windows' => material_records.find { |m| m.name == 'Black Bronze' }.id
   }
 )
@@ -166,9 +171,8 @@ option_b = DesignVersion.create!(
   label: 'Option B Dark Modern',
   created_by: 'Alex Contractor',
   snapshot_state_json: {
-    'walls' => material_records.find { |m| m.name == 'Modern Charcoal' }.id,
-    'roof' => material_records.find { |m| m.name == 'Onyx Black' }.id,
-    'trim' => material_records.find { |m| m.name == 'Iron Gray' }.id,
+    'walls'   => material_records.find { |m| m.name == 'Modern Charcoal' }.id,
+    'roof'    => material_records.find { |m| m.name == 'Onyx Black' }.id,
     'windows' => material_records.find { |m| m.name == 'Black Bronze' }.id
   }
 )
