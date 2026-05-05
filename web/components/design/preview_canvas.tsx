@@ -378,7 +378,13 @@ export function PreviewCanvas({
             };
 
             let materialId = getMaterialId();
-            if (pendingSuggestion && pendingSuggestion.region === target.id) materialId = pendingSuggestion.preset.id;
+            if (pendingSuggestion) {
+                if (pendingSuggestion.region === target.id ||
+                    ((target as any).isElement && (target as any).groupKey === pendingSuggestion.region) ||
+                    (target.id.startsWith('window_') && pendingSuggestion.region === 'windows')) {
+                    materialId = pendingSuggestion.preset.id;
+                }
+            }
 
             if (materialId && presetsMap[materialId]) {
                 const preset = presetsMap[materialId];
@@ -395,7 +401,11 @@ export function PreviewCanvas({
                 const isSelected = selectedRegions.includes(target.id) ||
                     (tAny.groupKey && selectedRegions.includes(tAny.groupKey)) ||
                     (target.id.startsWith('window_') && selectedRegions.includes('windows'));
-                const isChanged = (pendingSuggestion && pendingSuggestion.region === target.id);
+                const isChanged = (pendingSuggestion && (
+                    pendingSuggestion.region === target.id ||
+                    (tAny.groupKey && pendingSuggestion.region === tAny.groupKey) ||
+                    (target.id.startsWith('window_') && pendingSuggestion.region === 'windows')
+                ));
 
                 ctx.save();
                 ctx.globalAlpha = isSelected || isChanged ? 0.85 : 0.60;
