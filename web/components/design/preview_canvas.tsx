@@ -88,7 +88,6 @@ export function PreviewCanvas({
     const [isDraggingSplit, setIsDraggingSplit] = React.useState(false);
     const [angle3d, setAngle3d] = React.useState(0);
     const [vwScreen, setVwScreen] = React.useState(0);
-    const [outlinePulse, setOutlinePulse] = React.useState(1);
 
     const dragRef = React.useRef<{ x: number; active: boolean }>({ x: 0, active: false });
     const [rotating, setRotating] = React.useState(false);
@@ -152,33 +151,27 @@ export function PreviewCanvas({
     };
     const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
-    // Pulse animation for outlines
+    const pulseRef = React.useRef(1);
     React.useEffect(() => {
-        if (selectedRegions.length === 0) return;
-        let start = performance.now();
         let raf: number;
         const animate = (time: number) => {
-            const elapsed = time - start;
-            // oscillate between 0.4 and 1.0 alpha for the outline
-            setOutlinePulse(0.7 + Math.sin(elapsed / 250) * 0.3);
+            pulseRef.current = 0.7 + Math.sin(time / 250) * 0.3;
             raf = requestAnimationFrame(animate);
         };
         raf = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(raf);
-    }, [selectedRegions]);
+    }, []);
 
-    React.useEffect(() => {
-        setBaseReady(false);
-        setImagesLoaded(false);
-        setImages({});
-    }, [masksUrlPrefix, baseImageUrl]);
+    // Reusable offscreen buffers to avoid GC pressure
+    const offCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+    const texCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
 
     React.useEffect(() => {
         const requiredImages = [
-            { key: 'photo', url: safeUrl(baseImageUrl) + '?v=6' },
-            { key: 'schematic', url: safeUrl(`${masksUrlPrefix}/base.jpg`) + '?v=6' },
-            ...DESIGN_REGIONS.map(r => ({ key: `mask_${r}`, url: safeUrl(`${masksUrlPrefix}/mask_${r}.png`) + '?v=6' })),
-            ...elements.map(e => ({ key: `elem_${e.id}`, url: safeUrl(e.maskUrl.startsWith('/') || e.maskUrl.startsWith('http') ? e.maskUrl : `${masksUrlPrefix}/${e.maskUrl}`) + '?v=6' }))
+            { key: 'photo', url: safeUrl(baseImageUrl) },
+            { key: 'schematic', url: safeUrl(`${masksUrlPrefix}/base.jpg`) },
+            ...DESIGN_REGIONS.map(r => ({ key: `mask_${r}`, url: safeUrl(`${masksUrlPrefix}/mask_${r}.png`) })),
+            ...elements.map(e => ({ key: `elem_${e.id}`, url: safeUrl(e.maskUrl.startsWith('/') || e.maskUrl.startsWith('http') ? e.maskUrl : `${masksUrlPrefix}/${e.maskUrl}`) }))
         ];
 
         let loadedCount = 0;
@@ -241,16 +234,10 @@ export function PreviewCanvas({
                 const img = loadedImages[key];
                 if (!img || !img.naturalWidth) return;
                 
-                // Asset Contract Check
-                if (img.naturalWidth !== w || img.naturalHeight !== h) {
-                    console.warn(`[Design 2 Asset Contract] Mask ${key} dimensions (${img.naturalWidth}x${img.naturalHeight}) do not match base image (${w}x${h})!`);
-                }
-                
                 tempCtx.clearRect(0, 0, w, h);
                 tempCtx.drawImage(img, 0, 0, w, h);
                 const imgData = tempCtx.getImageData(0, 0, w, h);
                 
-                // Cache ONLY alpha channel (1 byte per pixel)
                 const alphaOnly = new Uint8ClampedArray(w * h);
                 for(let i=0; i<w*h; i++) {
                     alphaOnly[i] = imgData.data[i*4 + 3];
@@ -260,15 +247,27 @@ export function PreviewCanvas({
 
             alphaCacheRef.current = newCache;
             setDebugInfo(p => ({ ...p, alphaCacheReady: true }));
+
+            // Initialize reusable canvases
+            offCanvasRef.current = document.createElement('canvas');
+            offCanvasRef.current.width = w; offCanvasRef.current.height = h;
+            texCanvasRef.current = document.createElement('canvas');
+            texCanvasRef.current.width = w; texCanvasRef.current.height = h;
         }
     }, [masksUrlPrefix, baseImageUrl, elements]);
 
-    React.useEffect(() => {
+    const draw = React.useCallback(() => {
         if (!(viewMode === 'photo' || viewMode === 'schematic' || viewMode === 'wireframe')) return;
-        if (!imagesLoaded || !canvasRef.current) return;
+        if (!imagesLoaded || !canvasRef.current || !offCanvasRef.current || !texCanvasRef.current) return;
+        
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+
+        const off = offCanvasRef.current;
+        const offCtx = off.getContext('2d')!;
+        const tex = texCanvasRef.current;
+        const texCtx = tex.getContext('2d')!;
 
         // Determine base image to draw
         let baseImgKey = 'photo';
@@ -278,8 +277,10 @@ export function PreviewCanvas({
         const baseImg = images[baseImgKey];
         if (!baseImg || !baseImg.naturalWidth) return;
 
-        canvas.width = baseImg.naturalWidth;
-        canvas.height = baseImg.naturalHeight;
+        if (canvas.width !== baseImg.naturalWidth) {
+            canvas.width = baseImg.naturalWidth;
+            canvas.height = baseImg.naturalHeight;
+        }
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Apply filters based on viewMode
@@ -301,11 +302,8 @@ export function PreviewCanvas({
 
         ctx.filter = 'none'; // Reset filter for subsequent draws
 
-        // ── SUGGESTER MODE: draw contractor's state on right side of slider (Before) ──
-        // When a homeowner has a pending suggestion and the slider is active,
-        // the right side shows the contractor's approved materials (not raw photo).
+        // ── SUGGESTER MODE: draw contractor's state ──
         if (suggesterMode && pendingSuggestion && splitPos < 1) {
-            // Right side (Before = contractor state without suggestion)
             ctx.save();
             ctx.beginPath();
             ctx.rect(canvas.width * splitPos, 0, canvas.width, canvas.height);
@@ -321,30 +319,28 @@ export function PreviewCanvas({
                 const maskImg = images[target.key];
                 if (!maskImg || !maskImg.naturalWidth) return;
 
-                // Use contractor's state (selectedMaterials) — NO pendingSuggestion override
                 let matId = selectedMaterials[target.id];
                 if (!matId && (target as any).isElement && (target as any).groupKey) matId = selectedMaterials[(target as any).groupKey];
                 if (!matId) { const b = target.id.split('_')[0]; if (b === 'window') matId = selectedMaterials['windows']; }
 
                 if (matId && presetsMap[matId]) {
                     const hex = presetsMap[matId].swatchHex;
-                    const off = document.createElement('canvas');
-                    off.width = canvas.width; off.height = canvas.height;
-                    const offCtx = off.getContext('2d')!;
+                    offCtx.clearRect(0, 0, off.width, off.height);
+                    offCtx.globalCompositeOperation = 'source-over';
                     offCtx.fillStyle = hex;
                     offCtx.fillRect(0, 0, off.width, off.height);
                     offCtx.globalCompositeOperation = 'destination-in';
-                    offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                    offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
+                    
                     ctx.save();
                     ctx.globalAlpha = 0.65;
                     ctx.drawImage(off, 0, 0);
                     if (baseImg) {
-                        const tex = document.createElement('canvas');
-                        tex.width = canvas.width; tex.height = canvas.height;
-                        const texCtx = tex.getContext('2d')!;
-                        texCtx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+                        texCtx.clearRect(0, 0, tex.width, tex.height);
+                        texCtx.globalCompositeOperation = 'source-over';
+                        texCtx.drawImage(baseImg, 0, 0, tex.width, tex.height);
                         texCtx.globalCompositeOperation = 'destination-in';
-                        texCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                        texCtx.drawImage(maskImg, 0, 0, tex.width, tex.height);
                         ctx.globalCompositeOperation = 'multiply';
                         ctx.globalAlpha = 0.5;
                         ctx.drawImage(tex, 0, 0);
@@ -355,22 +351,19 @@ export function PreviewCanvas({
             ctx.restore();
         }
 
-        // Apply clip for comparison slider — left side = After (with suggestion)
+        // Comparison slider — After
         ctx.save();
         ctx.beginPath();
-        // The edited portion is drawn on the LEFT side of the split, original on RIGHT
         ctx.rect(0, 0, canvas.width * splitPos, canvas.height);
         ctx.clip();
 
-        // Unify bulk regions and explicit elements for rendering
-        // Filter out bulk regions if we have granular elements for that category to avoid "double-masking"
         const elementCategories = new Set(elements.map(e => e.groupKey || e.id.split('_')[0]));
         const renderTargets = [
             ...DESIGN_REGIONS.filter(r => !elementCategories.has(r)).map(r => ({ id: r, key: `mask_${r}`, isElement: false })),
             ...elements.map(e => ({ id: e.id, key: `elem_${e.id}`, isElement: true, groupKey: e.groupKey }))
         ];
 
-        // PASS 1: Material Tints (Bottom Layer)
+        // PASS 1: Material Tints
         renderTargets.forEach(target => {
             if (viewMode === 'wireframe') return;
             const maskImg = images[target.key];
@@ -378,11 +371,9 @@ export function PreviewCanvas({
 
             const getMaterialId = () => {
                 if (selectedMaterials[target.id]) return selectedMaterials[target.id];
-                // @ts-ignore
-                if (target.isElement && target.groupKey && selectedMaterials[target.groupKey]) return selectedMaterials[target.groupKey];
+                if ((target as any).isElement && (target as any).groupKey && selectedMaterials[(target as any).groupKey]) return selectedMaterials[(target as any).groupKey];
                 const base = target.id.split('_')[0];
                 if (base === 'window' && selectedMaterials['windows']) return selectedMaterials['windows'];
-                if (base === 'windows' && selectedMaterials['window']) return selectedMaterials['window'];
                 return undefined;
             };
 
@@ -393,48 +384,40 @@ export function PreviewCanvas({
                 const preset = presetsMap[materialId];
                 const hex = preset.swatchHex;
 
-                const off = document.createElement('canvas');
-                off.width = canvas.width; off.height = canvas.height;
-                const offCtx = off.getContext('2d')!;
+                offCtx.clearRect(0, 0, off.width, off.height);
+                offCtx.globalCompositeOperation = 'source-over';
                 offCtx.fillStyle = hex;
                 offCtx.fillRect(0, 0, off.width, off.height);
                 offCtx.globalCompositeOperation = 'destination-in';
-                offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
 
-                // BEFORE/AFTER LOGIC: Determine if this region is currently being focused
                 const tAny = target as any;
                 const isSelected = selectedRegions.includes(target.id) ||
                     (tAny.groupKey && selectedRegions.includes(tAny.groupKey)) ||
-                    (target.id.startsWith('window_') && selectedRegions.includes('windows')) ||
-                    (target.id === 'windows' && selectedRegions.includes('window'));
+                    (target.id.startsWith('window_') && selectedRegions.includes('windows'));
                 const isChanged = (pendingSuggestion && pendingSuggestion.region === target.id);
 
-                // BOLD REALISM RENDERING: Ensure color is visible on ANY background
                 ctx.save();
                 ctx.globalAlpha = isSelected || isChanged ? 0.85 : 0.60;
-
-                // 1. Solid Color Base
                 ctx.drawImage(off, 0, 0);
 
-                // 2. Texture Overlay: Draw the base image back on top with 'multiply' to keep shadows/texture
                 const baseImg = viewMode === 'photo' ? images['photo'] : images['schematic'];
                 if (baseImg) {
-                    const tex = document.createElement('canvas');
-                    tex.width = canvas.width; tex.height = canvas.height;
-                    const texCtx = tex.getContext('2d')!;
-                    texCtx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
+                    texCtx.clearRect(0, 0, tex.width, tex.height);
+                    texCtx.globalCompositeOperation = 'source-over';
+                    texCtx.drawImage(baseImg, 0, 0, tex.width, tex.height);
                     texCtx.globalCompositeOperation = 'destination-in';
-                    texCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                    texCtx.drawImage(maskImg, 0, 0, tex.width, tex.height);
 
                     ctx.globalCompositeOperation = 'multiply';
-                    ctx.globalAlpha = 0.5; // Subtle texture drape
+                    ctx.globalAlpha = 0.5;
                     ctx.drawImage(tex, 0, 0);
                 }
                 ctx.restore();
             }
         });
 
-        // PASS 2: UI Overlays (Top Layer)
+        // PASS 2: UI Overlays
         renderTargets.forEach(target => {
             const maskImg = images[target.key];
             if (!maskImg || !maskImg.naturalWidth) return;
@@ -442,80 +425,107 @@ export function PreviewCanvas({
             const tAny = target as any;
             const isSelected = selectedRegions.includes(target.id) ||
                 (tAny.groupKey && selectedRegions.includes(tAny.groupKey)) ||
-                (target.id.startsWith('window_') && selectedRegions.includes('windows')) ||
-                (target.id === 'windows' && selectedRegions.includes('window'));
+                (target.id.startsWith('window_') && selectedRegions.includes('windows'));
 
             const isHighlighted = highlightedRegion === target.id;
 
-            // 1. Solid Blue Pulsed Outline
             if (isSelected) {
                 ctx.save();
-                const off = document.createElement('canvas');
-                off.width = canvas.width; off.height = canvas.height;
-                const offCtx = off.getContext('2d')!;
-
-                // Thick solid outline via octagonal offset
+                offCtx.clearRect(0, 0, off.width, off.height);
                 offCtx.globalCompositeOperation = 'source-over';
                 const offset = 3;
                 [
                     [0, -offset], [0, offset], [-offset, 0], [offset, 0],
                     [-offset, -offset], [offset, offset], [-offset, offset], [offset, -offset]
-                ].forEach(([dx, dy]) => offCtx.drawImage(maskImg, dx, dy, canvas.width, canvas.height));
+                ].forEach(([dx, dy]) => offCtx.drawImage(maskImg, dx, dy, off.width, off.height));
 
-                // Pulsing color pass
                 offCtx.globalCompositeOperation = 'source-in';
-                const pulse = 0.8 + (Math.sin(outlinePulse * Math.PI * 2) * 0.15);
+                const pulse = pulseRef.current;
                 offCtx.fillStyle = `rgba(59, 130, 246, ${pulse})`;
                 offCtx.fillRect(0, 0, off.width, off.height);
 
-                // Punch out center to reveal image beneath
                 offCtx.globalCompositeOperation = 'destination-out';
-                offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
 
                 ctx.drawImage(off, 0, 0);
                 ctx.restore();
             }
 
-            // 2. Yellow Hover highlight
             if (isHighlighted && !isSelected) {
                 ctx.save();
-                const off = document.createElement('canvas');
-                off.width = canvas.width; off.height = canvas.height;
-                const offCtx = off.getContext('2d')!;
-                offCtx.fillStyle = 'rgba(255, 255, 100, 0.1)'; // Tactile hover feedback
+                offCtx.clearRect(0, 0, off.width, off.height);
+                offCtx.globalCompositeOperation = 'source-over';
+                offCtx.fillStyle = 'rgba(255, 255, 100, 0.1)';
                 offCtx.fillRect(0, 0, off.width, off.height);
                 offCtx.globalCompositeOperation = 'destination-in';
-                offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
                 ctx.drawImage(off, 0, 0);
                 ctx.restore();
             }
 
-            // 3. Wireframe Pass
             if (viewMode === 'wireframe') {
                 ctx.save();
-                const off = document.createElement('canvas');
-                off.width = canvas.width; off.height = canvas.height;
-                const offCtx = off.getContext('2d')!;
-                offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                offCtx.clearRect(0, 0, off.width, off.height);
                 offCtx.globalCompositeOperation = 'source-over';
+                offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
                 const wOff = 1;
-                offCtx.drawImage(maskImg, -wOff, 0, canvas.width, canvas.height);
-                offCtx.drawImage(maskImg, wOff, 0, canvas.width, canvas.height);
-                offCtx.drawImage(maskImg, 0, -wOff, canvas.width, canvas.height);
-                offCtx.drawImage(maskImg, 0, wOff, canvas.width, canvas.height);
+                offCtx.drawImage(maskImg, -wOff, 0, off.width, off.height);
+                offCtx.drawImage(maskImg, wOff, 0, off.width, off.height);
+                offCtx.drawImage(maskImg, 0, -wOff, off.width, off.height);
+                offCtx.drawImage(maskImg, 0, wOff, off.width, off.height);
                 offCtx.globalCompositeOperation = 'source-in';
                 offCtx.fillStyle = isSelected ? '#3b82f6' : (isHighlighted ? '#94a3b8' : '#cbd5e1');
                 offCtx.fillRect(0, 0, off.width, off.height);
                 offCtx.globalCompositeOperation = 'destination-out';
-                offCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                offCtx.drawImage(maskImg, 0, 0, off.width, off.height);
                 ctx.globalAlpha = isSelected ? 1.0 : 0.5;
                 ctx.drawImage(off, 0, 0);
                 ctx.restore();
             }
         });
 
-        ctx.restore(); // Restore from clipping path
-    }, [viewMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, splitPos, selectedRegions, outlinePulse, elements, suggesterMode]);
+        ctx.restore();
+    }, [viewMode, imagesLoaded, selectedMaterials, presetsMap, highlightedRegion, pendingSuggestion, images, splitPos, selectedRegions, elements, suggesterMode]);
+
+    // Main Render Loop (60fps but decoupled from React State)
+    React.useEffect(() => {
+        let raf: number;
+        const loop = () => {
+            draw();
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+    }, [draw]);
+
+    // Video frame loop - simplified
+    React.useEffect(() => {
+        const isVideo = baseImageUrl.toLowerCase().endsWith('.mp4') || baseImageUrl.toLowerCase().endsWith('.webm');
+        if (!isVideo || viewMode !== 'photo') return;
+
+        if (!videoRef.current) {
+            const vid = document.createElement('video');
+            vid.src = safeUrl(baseImageUrl);
+            vid.crossOrigin = 'anonymous';
+            vid.loop = true;
+            vid.muted = true;
+            vid.playsInline = true;
+            vid.play().catch(e => console.error("Video autoplay blocked:", e));
+            videoRef.current = vid;
+
+            vid.onloadeddata = () => {
+                setBaseReady(true);
+                setImagesLoaded(true);
+            };
+        }
+
+        return () => {
+            if (videoRef.current) {
+                videoRef.current.pause();
+                videoRef.current = null;
+            }
+        };
+    }, [viewMode, baseImageUrl]);
 
     // Video frame loop
     React.useEffect(() => {

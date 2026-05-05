@@ -34,7 +34,7 @@ export const DESIGN_QUERY = `
         createdBy
         createdAt
       }
-      recentEvents(limit: 100) {
+      recentEvents(limit: 30) {
         id
         actorName
         eventType
