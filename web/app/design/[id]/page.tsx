@@ -104,7 +104,10 @@ export default function DesignEditorPage() {
     const [design, setDesign] = React.useState<Design | null>(null);
     const [socketActive, setSocketActive] = React.useState(false);
     const [presets, setPresets] = React.useState<Record<string, MaterialPreset>>({});
-    const [presetsArr, setPresetsArr] = React.useState<MaterialPreset[]>([]);
+    const presetsRef = React.useRef<Record<string, MaterialPreset>>({});
+    React.useEffect(() => { presetsRef.current = presets; }, [presets]);
+
+    const presetsArr = React.useMemo(() => Object.values(presets), [presets]);
     const [loading, setLoading] = React.useState(true);
     const [connected, setConnected] = React.useState(false);
     const [members, setMembers] = React.useState<SessionMember[]>([]);
@@ -229,7 +232,6 @@ export default function DesignEditorPage() {
                 });
 
                 setPresets(map);
-                setPresetsArr(arr);
                 setDesign(designRes.design);
 
                 const events = designRes.design.recentEvents;
@@ -558,7 +560,7 @@ export default function DesignEditorPage() {
     const handleIncomingEvent = (ev: DesignEvent, newState: any, newVersion?: DesignVersion) => {
         if (ev.eventType === 'suggest_material') {
             const presetId = String(ev.toMaterialId || '');
-            const preset = presets[presetId];
+            const preset = presetsRef.current[presetId];
             if (preset) {
                 setPendingSuggestions(prev => {
                     const filtered = prev.filter(s => s.eventId !== ev.id);
