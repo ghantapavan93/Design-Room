@@ -47,6 +47,9 @@ import { formatTimeAgo } from '@/lib/time';
 import { computeEstimate, MOCK_MEASUREMENTS } from '@/lib/estimate_engine';
 
 const getWsUrl = () => {
+    if (process.env.NEXT_PUBLIC_CABLE_URL) {
+        return process.env.NEXT_PUBLIC_CABLE_URL;
+    }
     if (typeof window !== 'undefined') {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const port = window.location.port === '3001' ? '3000' : window.location.port; 

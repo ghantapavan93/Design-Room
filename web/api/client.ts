@@ -2,7 +2,9 @@ export class ApiClient {
     private apiUrl: string;
 
     constructor() {
-        if (typeof window !== 'undefined') {
+        if (process.env.NEXT_PUBLIC_API_URL) {
+            this.apiUrl = process.env.NEXT_PUBLIC_API_URL;
+        } else if (typeof window !== 'undefined') {
             const protocol = window.location.protocol;
             const port = window.location.port === '3001' ? '3000' : window.location.port;
             const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
