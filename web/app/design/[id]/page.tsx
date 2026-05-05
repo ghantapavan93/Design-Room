@@ -236,26 +236,26 @@ export default function DesignEditorPage() {
 
                 const events = designRes.design.recentEvents;
                 if (events && events.length > 0) {
-                    // Build a set of regions that have been approved or rejected —
-                    // these should NOT appear as pending even if a suggest_material event exists.
-                    const resolvedRegions = new Set<string>(
-                        events
-                            .filter((e: DesignEvent) => e.eventType === 'approve_suggestion' || e.eventType === 'reject_suggestion')
-                            .map((e: DesignEvent) => e.region)
-                    );
-
-                    const suggestions = events
-                        .filter((e: DesignEvent) => e.eventType === 'suggest_material' && !resolvedRegions.has(e.region))
-                        .map((e: DesignEvent) => {
-                            const presetId = String(e.toMaterialId || '');
-                            return {
-                                region: e.region,
-                                preset: map[presetId],
-                                actorName: e.actorName,
-                                eventId: e.id
-                            };
-                        })
-                        .filter((s: any) => s.preset);
+                    const processedRegions = new Set<string>();
+                    const suggestions: any[] = [];
+                    
+                    events.forEach((e: DesignEvent) => {
+                        if (!processedRegions.has(e.region)) {
+                            processedRegions.add(e.region);
+                            if (e.eventType === 'suggest_material') {
+                                const presetId = String(e.toMaterialId || '');
+                                if (map[presetId]) {
+                                    suggestions.push({
+                                        region: e.region,
+                                        preset: map[presetId],
+                                        actorName: e.actorName,
+                                        eventId: e.id
+                                    });
+                                }
+                            }
+                        }
+                    });
+                    
                     if (suggestions.length > 0) setPendingSuggestions(suggestions);
                 }
 
