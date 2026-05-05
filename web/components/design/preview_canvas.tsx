@@ -527,48 +527,7 @@ export function PreviewCanvas({
         };
     }, [viewMode, baseImageUrl]);
 
-    // Video frame loop
-    React.useEffect(() => {
-        const isVideo = baseImageUrl.toLowerCase().endsWith('.mp4') || baseImageUrl.toLowerCase().endsWith('.webm');
-        if (!isVideo || viewMode !== 'photo') return; // Only play video in 'photo' viewMode
 
-        if (!videoRef.current) {
-            const vid = document.createElement('video');
-            vid.src = safeUrl(baseImageUrl);
-            vid.crossOrigin = 'anonymous';
-            vid.loop = true;
-            vid.muted = true;
-            vid.playsInline = true;
-            vid.play().catch(e => console.error("Video autoplay blocked:", e));
-            videoRef.current = vid;
-
-            vid.onloadeddata = () => {
-                setBaseReady(true);
-                setImagesLoaded(true);
-            };
-        }
-
-        let rafId: number;
-        const renderFrame = () => {
-            // Force a re-render of the canvas by slightly updating pulse state or calling a separate draw function
-            // An easy hack to trigger the effect block above is to use a separate forceRender state
-            // But since outlinePulse already triggers ~60fps, we don't strictly *need* another loop if pulse is active.
-            // To be safe when nothing is selected, we'll force update manually:
-            if (videoRef.current && canvasRef.current && !videoRef.current.paused && !videoRef.current.ended) {
-                // We'll update outlinePulse slightly just to trigger the main effect
-                setOutlinePulse(p => p === 1 ? 0.999 : 1);
-            }
-            rafId = requestAnimationFrame(renderFrame);
-        };
-        rafId = requestAnimationFrame(renderFrame);
-
-        return () => {
-            cancelAnimationFrame(rafId);
-            if (videoRef.current) {
-                videoRef.current.pause();
-            }
-        };
-    }, [viewMode]);
 
     const getCoordinateMap = (eClientX: number, eClientY: number, baseImg: HTMLImageElement) => {
         if (!containerRef.current) return null;
