@@ -10,8 +10,8 @@ module Mutations
     argument :client_txn_id, String, required: true
     argument :design_session_token, String, required: true
 
-    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, workspace_id: nil),
-          design_workspace_id: workspace_id
+    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       region = region.to_s.downcase.strip
       design = Design.find(design_id)
@@ -48,11 +48,12 @@ module Mutations
         region: region,
         from_material_id: from_material_id,
         to_material_id: material_id,
-        client_txn_id: client_txn_id
+        client_txn_id: client_txn_id,
+        design_workspace_id: workspace_id
       )
 
       # Broadcast suggestion
-      ActionCable.server.broadcast("design_room_#{design.id}", { 
+      ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
         type: "design_event",
         event: {
           id: event.id,

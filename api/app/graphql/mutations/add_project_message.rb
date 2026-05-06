@@ -12,8 +12,8 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
 
-    def resolve(design_id:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:, workspace_id: nil),
-          design_workspace_id: workspace_id
+    def resolve(design_id:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
@@ -36,14 +36,15 @@ module Mutations
         actor = session.session_members.find_by(participant_id: participant_id)
         
         message = design.project_messages.create!(
-          body: body,
+        body: body,
           author_name: actor&.display_name || "Unknown",
           author_role: actor&.role || "viewer",
-          client_txn_id: client_txn_id
-        )
+          client_txn_id: client_txn_id,
+        design_workspace_id: workspace_id
+      )
 
         if message.persisted?
-          ActionCable.server.broadcast("design_room_#{design.id}", { 
+          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
             type: 'project_message', 
             message: {
               id: message.id.to_s,

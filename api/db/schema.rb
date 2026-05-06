@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_06_230510) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_06_232708) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -44,8 +44,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_06_230510) do
     t.decimal "estimate_total", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "design_workspace_id"
     t.index ["design_id"], name: "index_design_exports_on_design_id"
     t.index ["design_version_id"], name: "index_design_exports_on_design_version_id"
+    t.index ["design_workspace_id"], name: "index_design_exports_on_design_workspace_id"
   end
 
   create_table "design_sessions", force: :cascade do |t|
@@ -212,6 +214,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_06_230510) do
   add_foreign_key "design_events", "design_workspaces"
   add_foreign_key "design_events", "designs"
   add_foreign_key "design_exports", "design_versions"
+  add_foreign_key "design_exports", "design_workspaces"
   add_foreign_key "design_exports", "designs"
   add_foreign_key "design_sessions", "designs"
   add_foreign_key "design_states", "designs"

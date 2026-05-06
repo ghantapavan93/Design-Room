@@ -13,8 +13,8 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
 
-    def resolve(design_id:, region:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:, workspace_id: nil),
-          design_workspace_id: workspace_id
+    def resolve(design_id:, region:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
@@ -40,15 +40,16 @@ module Mutations
         end
         
         comment = design.region_comments.create!(
-          region: region,
+        region: region,
           body: body,
           author_name: actor.display_name,
           author_role: actor.role,
-          client_txn_id: client_txn_id
-        )
+          client_txn_id: client_txn_id,
+        design_workspace_id: workspace_id
+      )
 
         if comment.persisted?
-          ActionCable.server.broadcast("design_room_#{design.id}", { 
+          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
             type: 'region_comment', 
             comment: {
               id: comment.id.to_s,

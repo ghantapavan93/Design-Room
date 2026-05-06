@@ -9,8 +9,8 @@ module Mutations
     argument :client_txn_id, String, required: true
     argument :design_session_token, String, required: true
 
-    def resolve(design_id:, label:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, workspace_id: nil),
-          design_workspace_id: workspace_id
+    def resolve(design_id:, label:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       design = Design.find(design_id)
       
@@ -31,23 +31,25 @@ module Mutations
         end
 
         version = design.design_versions.create!(
-          label: label,
+        label: label,
           snapshot_state_json: state.state_json,
-          created_by: actor_name
-        )
+          created_by: actor_name,
+        design_workspace_id: workspace_id
+      )
 
         event = design.design_events.create!(
-          design_session: session,
+        design_session: session,
           event_type: 'save_version',
           actor_name: actor_name,
           actor_role: actor_role,
           client_txn_id: client_txn_id,
-          note: "Saved version: #{label}"
-        )
+          note: "Saved version: #{label}",
+        design_workspace_id: workspace_id
+      )
 
         state.update!(last_saved_at: Time.current)
 
-        ActionCable.server.broadcast("design_room_#{design.id}", { 
+        ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
           type: "design_event",
           event: {
             id: event.id,

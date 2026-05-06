@@ -1,13 +1,15 @@
 module Mutations
   class ResolveRegionComment < BaseMutation
     argument :comment_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :design_session_token, String, required: true
     argument :resolve, Boolean, required: true  # true = resolve, false = reopen
     argument :participant_id, String, required: true
 
     field :region_comment, Types::RegionCommentType, null: true
 
-    def resolve(comment_id:, design_session_token:, resolve:, participant_id:)
+    def resolve(comment_id:, design_session_token:, resolve:, participant_id:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       comment = RegionComment.find_by(id: comment_id)
       return respond_error("Comment not found", "NOT_FOUND") unless comment
 

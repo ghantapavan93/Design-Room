@@ -1,13 +1,15 @@
 module Mutations
   class RestoreVersion < BaseMutation
     argument :version_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :actor_name, String, required: true
     argument :actor_role, String, required: false
     argument :participant_id, String, required: true
     argument :client_txn_id, String, required: true
     argument :design_session_token, String, required: true
 
-    def resolve(version_id:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:)
+    def resolve(version_id:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       version = DesignVersion.find(version_id)
       design = version.design
@@ -29,13 +31,14 @@ module Mutations
         end
 
         event = design.design_events.create!(
-          design_session: session,
+        design_session: session,
           event_type: 'restore_version',
           actor_name: actor_name,
           actor_role: actor_role,
           client_txn_id: client_txn_id,
-          note: "Restored from version: #{version.label}"
-        )
+          note: "Restored from version: #{version.label}",
+        design_workspace_id: workspace_id
+      )
 
         state.update!(
           state_json: version.snapshot_state_json,
@@ -43,7 +46,7 @@ module Mutations
           last_saved_at: Time.current
         )
 
-        ActionCable.server.broadcast("design_room_#{design.id}", { 
+        ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
           event: {
             id: event.id,
             eventType: event.event_type,

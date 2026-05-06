@@ -13,6 +13,7 @@ module Mutations
     field :design_export, Types::DesignExportType, null: true
 
     def resolve(design_id:, design_session_token:, export_type:, actor_name:, version_label: nil, design_version_id: nil, estimate_total: nil, participant_id:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
       return respond_error("Invalid or expired session.", "UNAUTHORIZED") unless session
@@ -38,7 +39,8 @@ module Mutations
         exported_by: exported_by,
         export_type: export_type,
         version_label: version_label,
-        estimate_total: estimate_total
+        estimate_total: estimate_total,
+        design_workspace_id: workspace_id
       )
 
       { success: true, errors: [], design_export: export }

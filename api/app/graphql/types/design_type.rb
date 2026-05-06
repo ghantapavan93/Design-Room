@@ -26,7 +26,14 @@ module Types
       argument :after_id, Integer, required: false
     end
 
-        def project_messages
+        
+    def design_exports
+      scope = object.design_exports.order(created_at: :desc)
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
+    end
+
+    def project_messages
       scope = object.project_messages
       scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
       scope

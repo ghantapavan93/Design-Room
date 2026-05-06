@@ -2,14 +2,13 @@ module Mutations
   class CreateDesignWorkspace < BaseMutation
     argument :design_id, ID, required: true
     argument :workspace_id, ID, required: false
-    argument :workspace_id, ID, required: false
     argument :participant_id, String, required: true
 
     field :success, Boolean, null: false
     field :workspace, Types::DesignWorkspaceType, null: true
     field :errors, [String], null: false
 
-    def resolve(design_id:, participant_id:, workspace_id: nil, workspace_id: nil)
+    def resolve(design_id:, participant_id:, workspace_id: nil)
       design = Design.find(design_id)
       workspace = DesignWorkspace.create_from_design!(
         design: design,

@@ -252,9 +252,10 @@ export default function DesignEditorPage() {
     // Fetch Initial Data
     React.useEffect(() => {
         async function load() {
+            if (!workspaceId) return;
             try {
                 const [designRes, matRes] = await Promise.all([
-                    api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId }),
+                    api.graphqlRequest<any>(DESIGN_QUERY, { id: designId, workspaceId }),
                     api.graphqlRequest<any>(MATERIALS_QUERY)
                 ]);
 
@@ -447,7 +448,7 @@ export default function DesignEditorPage() {
             socketRef.current = ws;
 
             ws.onopen = () => {
-                const identifier = JSON.stringify({ channel: "DesignRoomChannel", design_id: designId });
+                const identifier = JSON.stringify({ channel: "DesignRoomChannel", design_id: designId, workspace_id: workspaceId });
                 ws.send(JSON.stringify({ command: "subscribe", identifier }));
             };
 
@@ -588,14 +589,14 @@ export default function DesignEditorPage() {
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [designId, loading, sessionToken, permissionVerified]);
+    }, [designId, loading, sessionToken, permissionVerified, workspaceId]);
 
     const startPolling = () => {
         if (pollRef.current) return;
         setConnectionMode('polling');
         pollRef.current = setInterval(async () => {
             try {
-                const res = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
+                const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId, workspaceId });
                 if (res.design) setDesign(res.design);
             } catch { }
         }, 2500);
@@ -642,7 +643,7 @@ export default function DesignEditorPage() {
     // ----- Actions -----
     const refreshDesignData = async () => {
         try {
-            const res = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
+            const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId, workspaceId });
             if (res.design) {
                 setDesign(res.design);
                 // Atomic update for share links shared across UI components
@@ -712,7 +713,7 @@ export default function DesignEditorPage() {
                         } else if (res.applyMaterial.errorCode === 'STALE_VERSION') {
                             // Re-fetch state to get latest version before continuing
                             try {
-                                const refreshRes = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
+                                const refreshRes = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId, workspaceId });
                                 if (refreshRes.design?.state?.lastEventId) {
                                     currentVersionId = String(refreshRes.design.state.lastEventId);
                                 }

@@ -1,4 +1,5 @@
 class DesignExport < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design
   belongs_to :design_version, optional: true
 

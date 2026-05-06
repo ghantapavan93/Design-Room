@@ -11,6 +11,7 @@ module Mutations
     field :errors, [String], null: false
 
     def resolve(design_id:, actor_name:, client_txn_id: nil, participant_id: nil, design_session_token: nil, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       design = Design.find(design_id)
       
       if design.update(final_version_id: nil)

@@ -13,6 +13,7 @@ module Mutations
     field :errors, [String], null: false
 
     def resolve(design_id:, region:, design_session_token:, lock_reason: nil, actor_name:, participant_id:, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
@@ -34,7 +35,7 @@ module Mutations
 
         if lock
           lock.destroy
-          ActionCable.server.broadcast("design_room_#{design.id}", {
+          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", {
             type: 'region_unlock',
             region: region
           })
@@ -49,7 +50,7 @@ module Mutations
             design_workspace_id: workspace_id
           )
 
-          ActionCable.server.broadcast("design_room_#{design.id}", {
+          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", {
             type: 'region_lock',
             region: region,
             lockedBy: locked_by,

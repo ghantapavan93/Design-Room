@@ -13,8 +13,8 @@ module Mutations
     
     CONFLICT_WINDOW_MS = 2000
 
-    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, base_version: nil, workspace_id: nil),
-          design_workspace_id: workspace_id
+    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, base_version: nil, workspace_id: nil)
+      workspace_id ||= context[:workspace_id]
       start_time = Time.current
       design = Design.find(design_id)
 
@@ -69,15 +69,16 @@ module Mutations
         end
 
         event = design.design_events.create!(
-          design_session: session,
+        design_session: session,
           event_type: "apply_material",
           actor_name: actor_name,
           actor_role: actor_role,
           region: region,
           from_material_id: from_material_id,
           to_material_id: material_id,
-          client_txn_id: client_txn_id
-        )
+          client_txn_id: client_txn_id,
+        design_workspace_id: workspace_id
+      )
 
         if material_id.present? && material_id != "REMOVE"
           current_state_json[region] = material_id
@@ -93,7 +94,7 @@ module Mutations
         )
 
         ActionCable.server.broadcast(
-          "design_room_#{design.id}",
+          "design_room_#{design.id}_#{workspace_id}",
           {
             type: "design_event",
             event: {

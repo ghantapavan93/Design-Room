@@ -16,8 +16,14 @@ class DesignRoomChannel < ApplicationCable::Channel
       return
     end
 
-    puts "SUBSCRIBE SUCCESS: design_room_#{params[:design_id]}"
-    stream_from "design_room_#{params[:design_id]}"
+    unless params[:workspace_id]
+      puts "REJECT: NO WORKSPACE ID"
+      reject
+      return
+    end
+
+    puts "SUBSCRIBE SUCCESS: design_room_#{params[:design_id]}_#{params[:workspace_id]}"
+    stream_from "design_room_#{params[:design_id]}_#{params[:workspace_id]}"
   end
 
   def unsubscribed
