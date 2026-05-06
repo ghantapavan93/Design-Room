@@ -1,6 +1,7 @@
 module Mutations
   class JoinDesignSession < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :display_name, String, required: true
     argument :participant_id, String, required: true
     argument :share_token, String, required: false
@@ -11,7 +12,7 @@ module Mutations
     field :members, GraphQL::Types::JSON, null: true
     field :effective_permission, String, null: true
 
-    def resolve(design_id:, display_name:, participant_id:, share_token: nil)
+    def resolve(design_id:, display_name:, participant_id:, share_token: nil, workspace_id: nil)
       design = Design.find(design_id)
 
       # Reuse existing session for this design instead of creating a new one every time

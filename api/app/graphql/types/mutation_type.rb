@@ -1,5 +1,6 @@
 module Types
   class MutationType < Types::BaseObject
+    field :create_design_workspace, mutation: Mutations::CreateDesignWorkspace
     field :create_design, mutation: Mutations::CreateDesign
     field :apply_material, mutation: Mutations::ApplyMaterial
     field :suggest_material, mutation: Mutations::SuggestMaterial

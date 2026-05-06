@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_06_230510) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -28,9 +28,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.string "client_txn_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "design_workspace_id"
     t.index ["design_id", "client_txn_id"], name: "index_design_events_on_design_id_and_client_txn_id", unique: true, where: "(client_txn_id IS NOT NULL)"
     t.index ["design_id"], name: "index_design_events_on_design_id"
     t.index ["design_session_id"], name: "index_design_events_on_design_session_id"
+    t.index ["design_workspace_id"], name: "index_design_events_on_design_workspace_id"
   end
 
   create_table "design_exports", force: :cascade do |t|
@@ -72,7 +74,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.string "created_by", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "design_workspace_id"
     t.index ["design_id"], name: "index_design_versions_on_design_id"
+    t.index ["design_workspace_id"], name: "index_design_versions_on_design_workspace_id"
+  end
+
+  create_table "design_workspaces", force: :cascade do |t|
+    t.bigint "design_id", null: false
+    t.jsonb "state_json", default: {}, null: false
+    t.string "last_event_id"
+    t.bigint "final_version_id"
+    t.string "created_by_participant_id"
+    t.string "label"
+    t.datetime "expires_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["design_id", "created_at"], name: "index_design_workspaces_on_design_id_and_created_at"
+    t.index ["design_id"], name: "index_design_workspaces_on_design_id"
+    t.index ["expires_at"], name: "index_design_workspaces_on_expires_at"
   end
 
   create_table "designs", force: :cascade do |t|
@@ -119,9 +138,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "client_txn_id"
+    t.bigint "design_workspace_id"
     t.index ["client_txn_id"], name: "index_project_messages_on_client_txn_id"
     t.index ["created_at"], name: "index_project_messages_on_created_at"
     t.index ["design_id"], name: "index_project_messages_on_design_id"
+    t.index ["design_workspace_id"], name: "index_project_messages_on_design_workspace_id"
   end
 
   create_table "region_comments", force: :cascade do |t|
@@ -134,9 +155,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "client_txn_id"
+    t.bigint "design_workspace_id"
     t.index ["client_txn_id"], name: "index_region_comments_on_client_txn_id"
     t.index ["design_id", "region"], name: "index_region_comments_on_design_id_and_region"
     t.index ["design_id"], name: "index_region_comments_on_design_id"
+    t.index ["design_workspace_id"], name: "index_region_comments_on_design_workspace_id"
   end
 
   create_table "region_locks", force: :cascade do |t|
@@ -147,8 +170,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.datetime "expires_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "design_workspace_id"
     t.index ["design_id", "region"], name: "index_region_locks_on_design_id_and_region", unique: true
     t.index ["design_id"], name: "index_region_locks_on_design_id"
+    t.index ["design_workspace_id"], name: "index_region_locks_on_design_workspace_id"
   end
 
   create_table "session_members", force: :cascade do |t|
@@ -160,9 +185,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "participant_id"
+    t.bigint "design_workspace_id"
     t.index ["design_session_id", "display_name"], name: "index_session_members_on_design_session_id_and_display_name", unique: true
     t.index ["design_session_id", "participant_id"], name: "idx_session_members_on_session_and_participant", unique: true, where: "(participant_id IS NOT NULL)"
     t.index ["design_session_id"], name: "index_session_members_on_design_session_id"
+    t.index ["design_workspace_id"], name: "index_session_members_on_design_workspace_id"
   end
 
   create_table "share_links", force: :cascade do |t|
@@ -175,21 +202,31 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_200129) do
     t.datetime "updated_at", null: false
     t.datetime "revoked_at"
     t.datetime "last_accessed_at"
+    t.bigint "design_workspace_id"
     t.index ["design_id"], name: "index_share_links_on_design_id"
+    t.index ["design_workspace_id"], name: "index_share_links_on_design_workspace_id"
     t.index ["token"], name: "index_share_links_on_token", unique: true
   end
 
   add_foreign_key "design_events", "design_sessions"
+  add_foreign_key "design_events", "design_workspaces"
   add_foreign_key "design_events", "designs"
   add_foreign_key "design_exports", "design_versions"
   add_foreign_key "design_exports", "designs"
   add_foreign_key "design_sessions", "designs"
   add_foreign_key "design_states", "designs"
+  add_foreign_key "design_versions", "design_workspaces"
   add_foreign_key "design_versions", "designs"
+  add_foreign_key "design_workspaces", "designs"
   add_foreign_key "elements", "designs"
+  add_foreign_key "project_messages", "design_workspaces"
   add_foreign_key "project_messages", "designs"
+  add_foreign_key "region_comments", "design_workspaces"
   add_foreign_key "region_comments", "designs"
+  add_foreign_key "region_locks", "design_workspaces"
   add_foreign_key "region_locks", "designs"
   add_foreign_key "session_members", "design_sessions"
+  add_foreign_key "session_members", "design_workspaces"
+  add_foreign_key "share_links", "design_workspaces"
   add_foreign_key "share_links", "designs"
 end

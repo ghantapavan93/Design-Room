@@ -1,4 +1,5 @@
 class ProjectMessage < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design
 
   validates :body, presence: true

@@ -1,6 +1,7 @@
 module Mutations
   class UnlockDesign < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :actor_name, String, required: true
     argument :client_txn_id, String, required: false
     argument :participant_id, String, required: false
@@ -9,7 +10,7 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
 
-    def resolve(design_id:, actor_name:, client_txn_id: nil, participant_id: nil, design_session_token: nil)
+    def resolve(design_id:, actor_name:, client_txn_id: nil, participant_id: nil, design_session_token: nil, workspace_id: nil)
       design = Design.find(design_id)
       
       if design.update(final_version_id: nil)

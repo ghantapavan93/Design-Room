@@ -1,4 +1,5 @@
 class DesignVersion < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design
 
   validates :label, presence: true

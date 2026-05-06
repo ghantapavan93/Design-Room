@@ -1,4 +1,5 @@
 class SessionMember < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design_session
 
   validates :display_name, presence: true

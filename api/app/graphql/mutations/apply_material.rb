@@ -1,6 +1,7 @@
 module Mutations
   class ApplyMaterial < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :region, String, required: true
     argument :material_id, ID, required: false
     argument :actor_name, String, required: true
@@ -12,7 +13,8 @@ module Mutations
     
     CONFLICT_WINDOW_MS = 2000
 
-    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, base_version: nil)
+    def resolve(design_id:, region:, material_id: nil, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:, base_version: nil, workspace_id: nil),
+          design_workspace_id: workspace_id
       start_time = Time.current
       design = Design.find(design_id)
 

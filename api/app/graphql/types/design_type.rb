@@ -26,22 +26,51 @@ module Types
       argument :after_id, Integer, required: false
     end
 
+        def project_messages
+      scope = object.project_messages
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
+    end
+
+    def region_locks
+      scope = object.region_locks
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
+    end
+
+    def region_comments
+      scope = object.region_comments
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
+    end
+
     def state
+      if context[:workspace_id]
+        ws = object.design_workspaces.find_by(id: context[:workspace_id])
+        if ws
+          return OpenStruct.new(state_json: ws.state_json, last_event_id: ws.last_event_id)
+        end
+      end
       object.design_state
     end
 
     def versions
-      object.design_versions.order(created_at: :desc)
+      scope = object.design_versions.order(created_at: :desc)
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
     end
 
     def share_links
       # Server-side filter: only active (not revoked, not expired), newest on top
-      object.share_links.active.order(created_at: :desc)
+      scope = object.share_links.active.order(created_at: :desc)
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
+      scope
     end
 
     def recent_events(limit:, after_id: nil)
       scope = object.design_events.order(id: :desc)
       scope = scope.where('id > ?', after_id) if after_id
+      scope = scope.where(design_workspace_id: context[:workspace_id]) if context[:workspace_id]
       scope.limit(limit)
     end
   end

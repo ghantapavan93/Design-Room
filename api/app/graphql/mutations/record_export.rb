@@ -1,6 +1,7 @@
 module Mutations
   class RecordExport < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :design_session_token, String, required: true
     argument :export_type, String, required: true
     argument :version_label, String, required: false
@@ -11,7 +12,7 @@ module Mutations
 
     field :design_export, Types::DesignExportType, null: true
 
-    def resolve(design_id:, design_session_token:, export_type:, actor_name:, version_label: nil, design_version_id: nil, estimate_total: nil, participant_id:)
+    def resolve(design_id:, design_session_token:, export_type:, actor_name:, version_label: nil, design_version_id: nil, estimate_total: nil, participant_id:, workspace_id: nil)
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
       return respond_error("Invalid or expired session.", "UNAUTHORIZED") unless session

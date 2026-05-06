@@ -1,6 +1,7 @@
 module Mutations
   class ToggleRegionLock < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :region, String, required: true
     argument :design_session_token, String, required: true
     argument :lock_reason, String, required: false
@@ -11,7 +12,7 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
 
-    def resolve(design_id:, region:, design_session_token:, lock_reason: nil, actor_name:, participant_id:)
+    def resolve(design_id:, region:, design_session_token:, lock_reason: nil, actor_name:, participant_id:, workspace_id: nil)
       start_time = Time.current
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)
@@ -44,7 +45,8 @@ module Mutations
           lock = design.region_locks.create!(
             region: region,
             locked_by: locked_by,
-            lock_reason: lock_reason
+            lock_reason: lock_reason,
+            design_workspace_id: workspace_id
           )
 
           ActionCable.server.broadcast("design_room_#{design.id}", {

@@ -1,6 +1,7 @@
 module Mutations
   class CreateShareLink < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :mode, String, required: true
     argument :permission, String, required: false
     argument :design_session_token, String, required: true
@@ -8,7 +9,7 @@ module Mutations
 
     field :link, Types::ShareLinkType, null: true
 
-    def resolve(design_id:, mode:, permission: nil, design_session_token:, participant_id:)
+    def resolve(design_id:, mode:, permission: nil, design_session_token:, participant_id:, workspace_id: nil)
       design = Design.find(design_id)
 
       session = validate_session(design, design_session_token)
@@ -29,6 +30,7 @@ module Mutations
 
       link = ShareLink.create!(
         design: design,
+        design_workspace_id: workspace_id,
         mode: mode,
         permission: permission,
         expires_at: 7.days.from_now

@@ -1,4 +1,5 @@
 class ShareLink < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design
 
   has_secure_token :token, length: 32

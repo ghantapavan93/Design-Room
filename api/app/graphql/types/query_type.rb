@@ -3,6 +3,7 @@ module Types
     field :design, Types::DesignType, null: false do
       argument :id, ID, required: true
       argument :events_after_id, Integer, required: false
+      argument :workspace_id, ID, required: false
     end
 
     def design(id:, events_after_id: nil)

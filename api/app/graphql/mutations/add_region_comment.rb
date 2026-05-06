@@ -1,6 +1,7 @@
 module Mutations
   class AddRegionComment < BaseMutation
     argument :design_id, ID, required: true
+    argument :workspace_id, ID, required: false
     argument :region, String, required: true
     argument :body, String, required: true
     argument :design_session_token, String, required: true
@@ -12,7 +13,8 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
 
-    def resolve(design_id:, region:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:)
+    def resolve(design_id:, region:, body:, design_session_token:, client_txn_id:, actor_name:, participant_id:, workspace_id: nil),
+          design_workspace_id: workspace_id
       start_time = Time.current
       design = Design.find(design_id)
       session = validate_session(design, design_session_token)

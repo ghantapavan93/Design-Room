@@ -1,4 +1,5 @@
 class Design < ApplicationRecord
+  has_many :design_workspaces, dependent: :destroy
   has_one :design_state, dependent: :destroy
   has_many :design_sessions, dependent: :destroy
   has_many :design_events, dependent: :destroy

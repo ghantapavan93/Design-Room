@@ -20,7 +20,7 @@ import { RegionCommentsDrawer, RegionComment } from '@/components/design/region_
 import { ProjectChatDrawer, ProjectMessage } from '@/components/design/project_chat_drawer';
 import { DesignRegion } from '@/lib/regions';
 import { api } from '@/api/client';
-import {
+import { CREATE_DESIGN_WORKSPACE_MUTATION, 
     DESIGN_QUERY,
     MATERIALS_QUERY,
     APPLY_MATERIAL_MUTATION,
@@ -39,7 +39,7 @@ import {
     RESOLVE_REGION_COMMENT_MUTATION,
     RECORD_EXPORT_MUTATION,
     REVOKE_SHARE_LINK_MUTATION
-} from '@/api/queries';
+ } from '@/api/queries';
 import { Design, MaterialPreset, DesignEvent, SessionMember, DesignVersion } from '@/lib/types';
 import { generateIdempotencyKey } from '@/lib/idempotency';
 import { toast } from '@/components/ui/toast';
@@ -101,6 +101,7 @@ export default function DesignEditorPage() {
     const participantIdRef = React.useRef<string>('');
 
     // App State
+    const [workspaceId, setWorkspaceId] = React.useState<string | null>(null);
     const [design, setDesign] = React.useState<Design | null>(null);
     const [socketActive, setSocketActive] = React.useState(false);
     const [presets, setPresets] = React.useState<Record<string, MaterialPreset>>({});
@@ -216,12 +217,44 @@ export default function DesignEditorPage() {
         }
     }, []);
 
+    
+    // Initialize Workspace
+    React.useEffect(() => {
+        if (!designId) return;
+
+        const storedWorkspaceId = typeof window !== "undefined" ? sessionStorage.getItem(`designWorkspaceId_${designId}`) : null;
+        if (storedWorkspaceId) {
+            setWorkspaceId(storedWorkspaceId);
+            return;
+        }
+
+        const hasShareToken = typeof window !== "undefined" && !!sessionStorage.getItem(`shareToken_${designId}`);
+        if (hasShareToken) return; // Will be set during JOIN_SESSION
+
+        async function createWorkspace() {
+            try {
+                const res = await api.graphqlRequest<any>(CREATE_DESIGN_WORKSPACE_MUTATION, {
+                    designId,
+                    participantId: participantIdRef.current || 'unknown'
+                });
+                const id = res?.createDesignWorkspace?.workspace?.id;
+                if (id) {
+                    sessionStorage.setItem(`designWorkspaceId_${designId}`, id);
+                    setWorkspaceId(id);
+                }
+            } catch (e) {
+                console.error("Failed to create workspace", e);
+            }
+        }
+        createWorkspace();
+    }, [designId]);
+
     // Fetch Initial Data
     React.useEffect(() => {
         async function load() {
             try {
                 const [designRes, matRes] = await Promise.all([
-                    api.graphqlRequest<any>(DESIGN_QUERY, { id: designId }),
+                    api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId }),
                     api.graphqlRequest<any>(MATERIALS_QUERY)
                 ]);
 
@@ -299,7 +332,7 @@ export default function DesignEditorPage() {
             }
         }
         load();
-    }, [designId]);
+    }, [designId, workspaceId]);
 
     
     // Lock Expiry Cleanup Hook
@@ -338,7 +371,7 @@ export default function DesignEditorPage() {
                     designId, 
                     displayName: nameToSend, 
                     shareToken: sessionShareToken || undefined, 
-                    participantId: pId || undefined
+                    participantId: pId || undefined, workspaceId: workspaceId || undefined
                 });
 
                 const payload = res.joinDesignSession;
@@ -366,6 +399,10 @@ export default function DesignEditorPage() {
                 setPermissionVerified(true);
 
                 if (payload.members) setMembers(payload.members);
+                if (payload.workspaceId) {
+                    sessionStorage.setItem(`designWorkspaceId_${designId}`, payload.workspaceId);
+                    setWorkspaceId(payload.workspaceId);
+                }
             } catch (e) {
                 console.error("JOIN EXCEPTION:", e);
             } finally {
@@ -558,7 +595,7 @@ export default function DesignEditorPage() {
         setConnectionMode('polling');
         pollRef.current = setInterval(async () => {
             try {
-                const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId });
+                const res = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
                 if (res.design) setDesign(res.design);
             } catch { }
         }, 2500);
@@ -605,7 +642,7 @@ export default function DesignEditorPage() {
     // ----- Actions -----
     const refreshDesignData = async () => {
         try {
-            const res = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId });
+            const res = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
             if (res.design) {
                 setDesign(res.design);
                 // Atomic update for share links shared across UI components
@@ -660,7 +697,7 @@ export default function DesignEditorPage() {
                         clientTxnId: txnId,
                         designSessionToken: sessionToken,
                         baseVersion: currentVersionId
-                    });
+                    , workspaceId: workspaceId || undefined});
                     if (res.applyMaterial.success) {
                         // Update version from server response for next iteration (avoids cascade STALE_VERSION)
                         if (res.applyMaterial.event?.id) currentVersionId = String(res.applyMaterial.event.id);
@@ -675,7 +712,7 @@ export default function DesignEditorPage() {
                         } else if (res.applyMaterial.errorCode === 'STALE_VERSION') {
                             // Re-fetch state to get latest version before continuing
                             try {
-                                const refreshRes = await api.graphqlRequest<any>(DESIGN_QUERY, { id: designId });
+                                const refreshRes = await api.graphqlRequest<any>(DESIGN_QUERY, workspaceId ? { id: designId, workspaceId } : { id: designId });
                                 if (refreshRes.design?.state?.lastEventId) {
                                     currentVersionId = String(refreshRes.design.state.lastEventId);
                                 }
@@ -714,7 +751,7 @@ export default function DesignEditorPage() {
                     console.log('[DEBUG] Sending SUGGEST_MATERIAL_MUTATION for region:', r);
                     const res = await api.graphqlRequest<any>(SUGGEST_MATERIAL_MUTATION, {
                         designId, region: r, materialId: preset.id === 'REMOVE' ? null : preset.id, actorName: displayName, actorRole: role, participantId: participantIdRef.current, clientTxnId: txnId, designSessionToken: sessionToken
-                    });
+                    , workspaceId: workspaceId || undefined});
                     console.log('[DEBUG] SUGGEST_MATERIAL_MUTATION Response:', res);
                     if (res?.suggestMaterial?.success) {
                         console.log('[DEBUG] Suggestion Success - setting local state');
@@ -739,7 +776,7 @@ export default function DesignEditorPage() {
         try {
             await api.graphqlRequest<any>(SAVE_VERSION_MUTATION, {
                 designId, label, actorName: displayName, clientTxnId: generateIdempotencyKey(), designSessionToken: sessionToken, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             toast({ title: `Saved version: ${label}`, variant: 'success' });
             refreshDesignData();
         } catch { toast({ title: 'Failed to save version', variant: 'destructive' }); }
@@ -749,7 +786,7 @@ export default function DesignEditorPage() {
         try {
             await api.graphqlRequest<any>(RESTORE_VERSION_MUTATION, {
                 versionId, actorName: displayName, clientTxnId: generateIdempotencyKey(), designSessionToken: sessionToken, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             toast({ title: 'Design restored', variant: 'success' });
             setCompareOption(null);
             setIsOptionsOpen(false);
@@ -817,7 +854,7 @@ export default function DesignEditorPage() {
         try {
             const res = await api.graphqlRequest<any>(APPROVE_SUGGESTION_MUTATION, {
                 eventId, designSessionToken: sessionToken, clientTxnId: txnId, actorName: displayName, actorRole: role, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             if (!res.approveSuggestion.success) toast({ title: res.approveSuggestion.errors[0], variant: 'destructive' });
             else toast({ title: "Suggestion approved" });
         } catch {
@@ -832,7 +869,7 @@ export default function DesignEditorPage() {
         try {
             const res = await api.graphqlRequest<any>(REJECT_SUGGESTION_MUTATION, {
                 eventId, designSessionToken: sessionToken, clientTxnId: txnId, actorName: displayName, actorRole: role, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             if (!res.rejectSuggestion.success) toast({ title: res.rejectSuggestion.errors[0], variant: 'destructive' });
             else toast({ title: "Suggestion rejected" });
         } catch {
@@ -855,7 +892,7 @@ export default function DesignEditorPage() {
         try {
             const res = await api.graphqlRequest<any>(ADD_REGION_COMMENT_MUTATION, {
                 designId, region, body, designSessionToken: sessionToken, clientTxnId: txnId, actorName: displayName, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             if (!res.addRegionComment.success) {
                 toast({ title: res.addRegionComment.errors[0], variant: 'destructive' });
                 setRegionComments(prev => prev.filter(c => c.id !== txnId));
@@ -885,7 +922,7 @@ export default function DesignEditorPage() {
         try {
             const res = await api.graphqlRequest<any>(ADD_PROJECT_MESSAGE_MUTATION, {
                 designId, body, designSessionToken: sessionToken, clientTxnId: txnId, actorName: displayName, participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             if (!res.addProjectMessage.success) {
                 toast({ title: `Failed to send message: ${res.addProjectMessage.errors[0]}`, variant: 'destructive' });
                 setProjectMessages(prev => prev.filter(m => m.id !== txnId));
@@ -909,7 +946,7 @@ export default function DesignEditorPage() {
                 permission: mode === 'live' ? targetPermission : undefined,
                 designSessionToken: sessionToken,
                 participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
             if (res.createShareLink.success) {
                 const link = res.createShareLink.link;
                 const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -999,7 +1036,7 @@ export default function DesignEditorPage() {
                 versionLabel: design.finalVersionId ? design.versions.find(v => String(v.id) === String(design.finalVersionId))?.label : undefined,
                 designVersionId: design.finalVersionId ? String(design.finalVersionId) : undefined,
                 participantId: participantIdRef.current
-            });
+            , workspaceId: workspaceId || undefined});
         } catch {
             // Export recording is best-effort — don't block the export
         }
@@ -1292,7 +1329,7 @@ export default function DesignEditorPage() {
                                                     try {
                                                         const res = await api.graphqlRequest<any>(TOGGLE_REGION_LOCK_MUTATION, {
                                                             designId, region: r, designSessionToken: sessionToken, actorName: displayName, participantId: participantIdRef.current
-                                                        });
+                                                        , workspaceId: workspaceId || undefined});
                                                         if (!res.toggleRegionLock.success) {
                                                             toast({ title: res.toggleRegionLock.errors[0], variant: 'destructive' });
                                                         }

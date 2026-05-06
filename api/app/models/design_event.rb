@@ -1,4 +1,5 @@
 class DesignEvent < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   include DesignRegions
 
   belongs_to :design

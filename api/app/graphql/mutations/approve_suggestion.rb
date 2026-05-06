@@ -7,7 +7,8 @@ module Mutations
     argument :client_txn_id, String, required: true
     argument :design_session_token, String, required: true
 
-    def resolve(event_id:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:)
+    def resolve(event_id:, actor_name:, actor_role: nil, participant_id:, client_txn_id:, design_session_token:),
+          design_workspace_id: workspace_id
       start_time = Time.current
       target_event = DesignEvent.find(event_id)
       design = target_event.design

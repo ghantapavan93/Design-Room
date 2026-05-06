@@ -1,4 +1,5 @@
 class RegionLock < ApplicationRecord
+  belongs_to :design_workspace, optional: true
   belongs_to :design
 
   validates :region, presence: true
