@@ -170,6 +170,7 @@ export default function DesignEditorPage() {
     const reconnectAttemptRef = React.useRef(0);
     const shouldStopRef = React.useRef(false);
     const subscribedRef = React.useRef(false);
+    const pingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Initialize Session from sessionStorage (cache only — server verifies on join)
     React.useEffect(() => {
@@ -390,6 +391,10 @@ export default function DesignEditorPage() {
                 clearInterval(pollRef.current);
                 pollRef.current = null;
             }
+            if (pingTimeoutRef.current) {
+                clearTimeout(pingTimeoutRef.current);
+                pingTimeoutRef.current = null;
+            }
         };
 
         const connectWs = () => {
@@ -413,7 +418,13 @@ export default function DesignEditorPage() {
                 try {
                     const data = JSON.parse(event.data);
 
-                    if (data.type === "ping") return;
+                    if (data.type === "ping") {
+                        if (pingTimeoutRef.current) clearTimeout(pingTimeoutRef.current);
+                        pingTimeoutRef.current = setTimeout(() => {
+                            try { ws.close(); } catch {}
+                        }, 10000);
+                        return;
+                    }
 
                     if (data.type === "confirm_subscription") {
                         subscribedRef.current = true;
@@ -434,12 +445,8 @@ export default function DesignEditorPage() {
                         try { ws.close(); } catch { }
                         
                         // If the server rejects our subscription, our session token is likely stale or invalid.
-                        // Clear it and reload the page so the join flow can run again.
-                        if (sessionStorage.getItem(`designSessionToken_${designId}`) || sessionStorage.getItem('designSessionToken')) {
-                            sessionStorage.removeItem(`designSessionToken_${designId}`);
-                            sessionStorage.removeItem("designSessionToken");
-                            window.location.reload();
-                        }
+                        // Trigger silent reconnect/rejoin flow:
+                        setPermissionVerified(false);
                         return;
                     }
 

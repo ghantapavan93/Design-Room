@@ -17,3 +17,6 @@ test:
 production:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>
+  keepalives_idle: 60
+  variables:
+    statement_timeout: 0
