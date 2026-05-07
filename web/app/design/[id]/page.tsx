@@ -240,6 +240,7 @@ export default function DesignEditorPage() {
                 const id = res?.createDesignWorkspace?.workspace?.id;
                 if (id) {
                     sessionStorage.setItem(`designWorkspaceId_${designId}`, id);
+                    handleInitialData(res.createDesignWorkspace);
                     setWorkspaceId(id);
                 }
             } catch (e) {
@@ -252,6 +253,7 @@ export default function DesignEditorPage() {
     // Fetch Initial Data
     React.useEffect(() => {
         async function load() {
+            if (!workspaceId || design) return;
             if (!workspaceId) return;
             try {
                 const [designRes, matRes] = await Promise.all([
@@ -350,6 +352,20 @@ export default function DesignEditorPage() {
     }, []);
 
 
+    
+    const handleInitialData = (data) => {
+        if (!data?.design || !data?.materials) return;
+        const map = {};
+        data.materials.forEach(m => { map[m.id] = m; });
+        setPresets(map);
+        setDesign(data.design);
+        if (data.design.regionLocks) setLockedRegions(data.design.regionLocks);
+        if (data.design.regionComments) setRegionComments(data.design.regionComments);
+        if (data.design.projectMessages) setProjectMessages(data.design.projectMessages);
+        if (data.design.shareLinks) setShareLinks(data.design.shareLinks);
+        setLoading(false);
+    };
+
     const isJoiningRef = React.useRef(false);
 
     // Join Design Session Handshake
@@ -402,6 +418,7 @@ export default function DesignEditorPage() {
                 if (payload.members) setMembers(payload.members);
                 if (payload.workspaceId) {
                     sessionStorage.setItem(`designWorkspaceId_${designId}`, payload.workspaceId);
+                    handleInitialData(payload);
                     setWorkspaceId(payload.workspaceId);
                 }
             } catch (e) {

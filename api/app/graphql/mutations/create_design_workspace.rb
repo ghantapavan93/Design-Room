@@ -5,6 +5,8 @@ module Mutations
     argument :participant_id, String, required: true
 
     field :success, Boolean, null: false
+    field :design, Types::DesignType, null: true
+    field :materials, [Types::MaterialPresetType], null: true
     field :workspace, Types::DesignWorkspaceType, null: true
     field :errors, [String], null: false
 
