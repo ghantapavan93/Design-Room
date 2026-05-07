@@ -352,10 +352,10 @@ export default function DesignEditorPage() {
 
 
     
-    const handleInitialData = (data) => {
+    const handleInitialData = (data: any) => {
         if (!data?.design || !data?.materials) return;
-        const map = {};
-        data.materials.forEach(m => { map[m.id] = m; });
+        const map: Record<string, any> = {};
+        data.materials.forEach((m: any) => { map[m.id] = m; });
         setPresets(map);
         setDesign(data.design);
         if (data.design.regionLocks) setLockedRegions(data.design.regionLocks);
