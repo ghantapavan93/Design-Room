@@ -85,8 +85,7 @@ module Mutations
           }
         end
 
-      ActionCable.server.broadcast(
-        "design_room_#{design.id}",
+      ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}",
         { members: members_payload }
       )
 
