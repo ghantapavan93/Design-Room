@@ -101,7 +101,12 @@ export default function DesignEditorPage() {
     const participantIdRef = React.useRef<string>('');
 
     // App State
-    const [workspaceId, setWorkspaceId] = React.useState<string | null>(null);
+    const [workspaceId, setWorkspaceId] = React.useState<string | null>(() => {
+        if (typeof window === "undefined") return null;
+        const params = new URLSearchParams(window.location.search);
+        const designId = window.location.pathname.split('/').pop();
+        return sessionStorage.getItem(`designWorkspaceId_${designId}`);
+    });
     const [design, setDesign] = React.useState<Design | null>(null);
     const [socketActive, setSocketActive] = React.useState(false);
     const [presets, setPresets] = React.useState<Record<string, MaterialPreset>>({});
@@ -220,16 +225,10 @@ export default function DesignEditorPage() {
     
     // Initialize Workspace
     React.useEffect(() => {
-        if (!designId) return;
-
-        const storedWorkspaceId = typeof window !== "undefined" ? sessionStorage.getItem(`designWorkspaceId_${designId}`) : null;
-        if (storedWorkspaceId) {
-            setWorkspaceId(storedWorkspaceId);
-            return;
-        }
+        if (!designId || workspaceId) return;
 
         const hasShareToken = typeof window !== "undefined" && !!sessionStorage.getItem(`shareToken_${designId}`);
-        if (hasShareToken) return; // Will be set during JOIN_SESSION
+        if (hasShareToken) return;
 
         async function createWorkspace() {
             try {
@@ -248,7 +247,7 @@ export default function DesignEditorPage() {
             }
         }
         createWorkspace();
-    }, [designId]);
+    }, [designId, workspaceId]);
 
     // Fetch Initial Data
     React.useEffect(() => {
@@ -370,7 +369,7 @@ export default function DesignEditorPage() {
 
     // Join Design Session Handshake
     React.useEffect(() => {
-        if (!designId || loading || isJoiningRef.current) return;
+        if (!designId || isJoiningRef.current) return;
         
         // If we have a session token already, only skip if it's verified.
         if (sessionToken && permissionVerified) return;
@@ -429,11 +428,11 @@ export default function DesignEditorPage() {
         }
 
         join();
-    }, [designId, loading, sessionToken, permissionVerified, displayName]);
+    }, [designId, sessionToken, permissionVerified, displayName]);
 
     // Websocket
     React.useEffect(() => {
-        if (!designId || loading || !sessionToken || !permissionVerified) return;
+        if (!designId || !sessionToken || !permissionVerified || !workspaceId) return;
 
         shouldStopRef.current = false;
 
@@ -606,7 +605,7 @@ export default function DesignEditorPage() {
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [designId, loading, sessionToken, permissionVerified, workspaceId]);
+    }, [designId, sessionToken, permissionVerified, workspaceId]);
 
     const startPolling = () => {
         if (pollRef.current) return;
