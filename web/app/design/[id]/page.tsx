@@ -1553,6 +1553,7 @@ export default function DesignEditorPage() {
                 <OptionCompare
                     version={compareOption}
                     currentState={(design.state.stateJson || {}) as Record<DesignRegion, string>}
+                    versions={design.versions || []}
                     presetsMap={presets}
                     baseImageUrl={design.baseMediaUrl || "/demo/coastal/base.jpg"}
                     masksUrlPrefix={design.masksUrlPrefix || "/demo/coastal"}
