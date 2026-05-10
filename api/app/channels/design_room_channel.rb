@@ -16,11 +16,8 @@ class DesignRoomChannel < ApplicationCable::Channel
       return
     end
 
-    stream_name = if params[:workspace_id].present? && params[:workspace_id] != "default"
-      "design_room_#{params[:design_id]}_#{params[:workspace_id]}"
-    else
-      "design_room_#{params[:design_id]}"
-    end
+    design = Design.find(params[:design_id])
+    stream_name = design.stream_name(params[:workspace_id])
 
     puts "SUBSCRIBE SUCCESS: #{stream_name}"
     stream_from stream_name
