@@ -44,7 +44,7 @@ module Mutations
       )
 
         if message.persisted?
-          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
+          ActionCable.server.broadcast(design.stream_name(workspace_id), { 
             type: 'project_message', 
             message: {
               id: message.id.to_s,

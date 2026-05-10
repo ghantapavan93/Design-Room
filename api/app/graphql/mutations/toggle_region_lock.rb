@@ -35,7 +35,7 @@ module Mutations
 
         if lock
           lock.destroy
-          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", {
+          ActionCable.server.broadcast(design.stream_name(workspace_id), {
             type: 'region_unlock',
             region: region
           })
@@ -50,7 +50,7 @@ module Mutations
             design_workspace_id: workspace_id
           )
 
-          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", {
+          ActionCable.server.broadcast(design.stream_name(workspace_id), {
             type: 'region_lock',
             region: region,
             lockedBy: locked_by,

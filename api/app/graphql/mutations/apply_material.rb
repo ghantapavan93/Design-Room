@@ -94,7 +94,7 @@ module Mutations
         )
 
         ActionCable.server.broadcast(
-          "design_room_#{design.id}_#{workspace_id}",
+          design.stream_name(workspace_id),
           {
             type: "design_event",
             event: {

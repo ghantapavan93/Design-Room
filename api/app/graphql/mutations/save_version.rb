@@ -49,7 +49,7 @@ module Mutations
 
         state.update!(last_saved_at: Time.current)
 
-        ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
+        ActionCable.server.broadcast(design.stream_name(workspace_id), { 
           type: "design_event",
           event: {
             id: event.id,

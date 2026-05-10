@@ -15,4 +15,12 @@ class Design < ApplicationRecord
   belongs_to :final_version, class_name: 'DesignVersion', optional: true
 
   validates :title, presence: true
+
+  def stream_name(workspace_id = nil)
+    if workspace_id.present? && workspace_id != "default"
+      "design_room_#{id}_#{workspace_id}"
+    else
+      "design_room_#{id}"
+    end
+  end
 end

@@ -49,7 +49,7 @@ module Mutations
       )
 
         if comment.persisted?
-          ActionCable.server.broadcast("design_room_#{design.id}_#{workspace_id}", { 
+          ActionCable.server.broadcast(design.stream_name(workspace_id), { 
             type: 'region_comment', 
             comment: {
               id: comment.id.to_s,
