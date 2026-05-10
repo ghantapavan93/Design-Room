@@ -417,8 +417,10 @@ export default function DesignEditorPage() {
                 if (payload.members) setMembers(payload.members);
                 if (payload.workspaceId) {
                     sessionStorage.setItem(`designWorkspaceId_${designId}`, payload.workspaceId);
-                    handleInitialData(payload);
                     setWorkspaceId(payload.workspaceId);
+                }
+                if (payload.design && payload.materials) {
+                    handleInitialData(payload);
                 }
             } catch (e) {
                 console.error("JOIN EXCEPTION:", e);
@@ -432,7 +434,7 @@ export default function DesignEditorPage() {
 
     // Websocket
     React.useEffect(() => {
-        if (!designId || !sessionToken || !permissionVerified || !workspaceId) return;
+        if (!designId || !sessionToken || !permissionVerified) return;
 
         shouldStopRef.current = false;
 

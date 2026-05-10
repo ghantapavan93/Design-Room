@@ -14,8 +14,8 @@ class DesignWorkspace < ApplicationRecord
   def self.create_from_design!(design:, participant_id:, label: nil)
     create!(
       design: design,
-      state_json: design.state&.state_json || {},
-      last_event_id: design.state&.last_event_id,
+      state_json: design.design_state&.state_json || {},
+      last_event_id: design.design_state&.last_event_id,
       final_version_id: design.final_version_id,
       created_by_participant_id: participant_id,
       label: label,
