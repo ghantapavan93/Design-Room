@@ -1,7 +1,6 @@
 module Mutations
   class CreateDesignWorkspace < BaseMutation
     argument :design_id, ID, required: true
-    argument :workspace_id, ID, required: false
     argument :participant_id, String, required: true
 
     field :success, Boolean, null: false
@@ -10,28 +9,36 @@ module Mutations
     field :workspace, Types::DesignWorkspaceType, null: true
     field :errors, [String], null: false
 
-    def resolve(design_id:, participant_id:, workspace_id: nil)
+    def resolve(design_id:, participant_id:)
       design = Design.find(design_id)
       workspace = DesignWorkspace.create_from_design!(
         design: design,
         participant_id: participant_id
       )
 
+      context[:workspace_id] = workspace.id
+
       {
         success: true,
         workspace: workspace,
+        design: design,
+        materials: MaterialPreset.all,
         errors: []
       }
     rescue ActiveRecord::RecordInvalid => e
       {
         success: false,
         workspace: nil,
+        design: nil,
+        materials: nil,
         errors: e.record.errors.full_messages
       }
     rescue => e
       {
         success: false,
         workspace: nil,
+        design: nil,
+        materials: nil,
         errors: [e.message]
       }
     end

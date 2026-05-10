@@ -9,8 +9,11 @@ module Mutations
     field :success, Boolean, null: false
     field :errors, [String], null: false
     field :design_session_token, String, null: true
+    field :workspace_id, ID, null: true
     field :members, GraphQL::Types::JSON, null: true
     field :effective_permission, String, null: true
+    field :design, Types::DesignType, null: true
+    field :materials, [Types::MaterialPresetType], null: true
 
     def resolve(design_id:, display_name:, participant_id:, share_token: nil, workspace_id: nil)
       design = Design.find(design_id)
@@ -71,6 +74,8 @@ module Mutations
 
       Rails.logger.info "[SessionJoin] User #{participant_id} joined Design #{design_id} as #{effective_role} (#{effective_permission})"
 
+      # Set workspace context for DesignType resolvers
+      context[:workspace_id] = workspace_id if workspace_id.present?
 
       members_payload = session.session_members
         .order(last_seen_at: :desc)
@@ -93,8 +98,11 @@ module Mutations
         success: true,
         errors: [],
         design_session_token: session.token,
+        workspace_id: workspace_id,
         members: members_payload,
-        effective_permission: member.permission
+        effective_permission: member.permission,
+        design: design,
+        materials: MaterialPreset.all
       }
     rescue => e
       { success: false, errors: [e.message], design_session_token: nil, members: nil }

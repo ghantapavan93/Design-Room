@@ -201,7 +201,7 @@ export const UNLOCK_DESIGN_MUTATION = `
 `;
 
 export const JOIN_SESSION_MUTATION = `
-  mutation JoinDesignSession($designId: ID!, $displayName: String!, $participantId: String!, $shareToken: String) {
+  mutation JoinDesignSession($designId: ID!, $displayName: String!, $participantId: String!, $shareToken: String, $workspaceId: ID) {
     joinDesignSession(input: { designId: $designId, displayName: $displayName, participantId: $participantId, shareToken: $shareToken, workspaceId: $workspaceId }) {
       success
       errors
@@ -209,34 +209,34 @@ export const JOIN_SESSION_MUTATION = `
       workspaceId
       members
       effectivePermission
-      design { 
-      id
-      title
-      baseMediaUrl
-      masksUrlPrefix
-      elements { id label kind groupKey maskUrl sortOrder }
-      finalVersionId
-      maskReady
-      state { id stateJson lastEventId lastSavedAt }
-      versions { id designId label snapshotStateJson createdBy createdAt }
-      recentEvents(limit: 30) { id actorName eventType region fromMaterialId toMaterialId note clientTxnId createdAt }
-      projectMessages { id authorName authorRole body createdAt }
-      regionLocks { id region lockedBy lockReason expiresAt createdAt }
-      regionComments { id region authorName authorRole body createdAt resolvedAt }
-      shareLinks { id token mode permission revokedAt lastAccessedAt createdAt }
- }
-      materials { 
-      id
-      category
-      name
-      brand
-      colorFamily
-      costBand
-      sku
-      unitType
-      swatchHex
-      thumbnailUrl
- }
+      design {
+        id
+        title
+        baseMediaUrl
+        masksUrlPrefix
+        elements { id label kind groupKey maskUrl sortOrder }
+        finalVersionId
+        maskReady
+        state { id stateJson lastEventId lastSavedAt }
+        versions { id designId label snapshotStateJson createdBy createdAt }
+        recentEvents(limit: 30) { id actorName eventType region fromMaterialId toMaterialId note clientTxnId createdAt }
+        projectMessages { id authorName authorRole body createdAt }
+        regionLocks { id region lockedBy lockReason expiresAt createdAt }
+        regionComments { id region authorName authorRole body createdAt resolvedAt }
+        shareLinks { id token mode permission revokedAt lastAccessedAt createdAt }
+      }
+      materials {
+        id
+        category
+        name
+        brand
+        colorFamily
+        costBand
+        sku
+        unitType
+        swatchHex
+        thumbnailUrl
+      }
     }
   }
 `;
@@ -321,38 +321,36 @@ export const CREATE_DESIGN_WORKSPACE_MUTATION = `
   mutation CreateDesignWorkspace($designId: ID!, $participantId: String!) {
     createDesignWorkspace(input: { designId: $designId, participantId: $participantId }) {
       success
+      errors
       workspace { id stateJson expiresAt }
-      errors
-      design { 
-      id
-      title
-      baseMediaUrl
-      masksUrlPrefix
-      elements { id label kind groupKey maskUrl sortOrder }
-      finalVersionId
-      maskReady
-      state { id stateJson lastEventId lastSavedAt }
-      versions { id designId label snapshotStateJson createdBy createdAt }
-      recentEvents(limit: 30) { id actorName eventType region fromMaterialId toMaterialId note clientTxnId createdAt }
-      projectMessages { id authorName authorRole body createdAt }
-      regionLocks { id region lockedBy lockReason expiresAt createdAt }
-      regionComments { id region authorName authorRole body createdAt resolvedAt }
-      shareLinks { id token mode permission revokedAt lastAccessedAt createdAt }
- }
-      materials { 
-      id
-      category
-      name
-      brand
-      colorFamily
-      costBand
-      sku
-      unitType
-      swatchHex
-      thumbnailUrl
- }
-    }
-      errors
+      design {
+        id
+        title
+        baseMediaUrl
+        masksUrlPrefix
+        elements { id label kind groupKey maskUrl sortOrder }
+        finalVersionId
+        maskReady
+        state { id stateJson lastEventId lastSavedAt }
+        versions { id designId label snapshotStateJson createdBy createdAt }
+        recentEvents(limit: 30) { id actorName eventType region fromMaterialId toMaterialId note clientTxnId createdAt }
+        projectMessages { id authorName authorRole body createdAt }
+        regionLocks { id region lockedBy lockReason expiresAt createdAt }
+        regionComments { id region authorName authorRole body createdAt resolvedAt }
+        shareLinks { id token mode permission revokedAt lastAccessedAt createdAt }
+      }
+      materials {
+        id
+        category
+        name
+        brand
+        colorFamily
+        costBand
+        sku
+        unitType
+        swatchHex
+        thumbnailUrl
+      }
     }
   }
 `;
