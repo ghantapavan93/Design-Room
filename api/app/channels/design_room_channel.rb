@@ -16,14 +16,14 @@ class DesignRoomChannel < ApplicationCable::Channel
       return
     end
 
-    unless params[:workspace_id]
-      puts "REJECT: NO WORKSPACE ID"
-      reject
-      return
+    stream_name = if params[:workspace_id].present? && params[:workspace_id] != "default"
+      "design_room_#{params[:design_id]}_#{params[:workspace_id]}"
+    else
+      "design_room_#{params[:design_id]}"
     end
 
-    puts "SUBSCRIBE SUCCESS: design_room_#{params[:design_id]}_#{params[:workspace_id]}"
-    stream_from "design_room_#{params[:design_id]}_#{params[:workspace_id]}"
+    puts "SUBSCRIBE SUCCESS: #{stream_name}"
+    stream_from stream_name
   end
 
   def unsubscribed

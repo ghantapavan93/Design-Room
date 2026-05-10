@@ -466,7 +466,7 @@ export default function DesignEditorPage() {
             socketRef.current = ws;
 
             ws.onopen = () => {
-                const identifier = JSON.stringify({ channel: "DesignRoomChannel", design_id: designId, workspace_id: workspaceId });
+                const identifier = JSON.stringify({ channel: "DesignRoomChannel", design_id: designId, workspace_id: workspaceId || "default" });
                 ws.send(JSON.stringify({ command: "subscribe", identifier }));
             };
 
