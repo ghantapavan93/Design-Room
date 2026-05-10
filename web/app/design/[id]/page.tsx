@@ -50,16 +50,23 @@ const getWsUrl = () => {
     if (process.env.NEXT_PUBLIC_CABLE_URL) {
         return process.env.NEXT_PUBLIC_CABLE_URL;
     }
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl) {
+        // Derive wss/ws from https/http
+        const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+        // Remove protocol part and append /cable
+        const hostPart = apiUrl.replace(/^https?:\/\//, '');
+        return `${wsProtocol}//${hostPart}/cable`;
+    }
+
     if (typeof window !== 'undefined') {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const port = window.location.port === '3001' ? '3000' : window.location.port; 
-        
-        // Aggressive workaround for Chrome Windows IPv6 loopback drop bug on WebSockets:
         const host = window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname;
-        
         return `${protocol}//${host}:${port}/cable`;
     }
-    return 'ws://127.0.0.1:3000/cable';
+    return "ws://127.0.0.1:3000/cable";
 };
 
 const RECONNECT_DELAY_MS = 2500;
